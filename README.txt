@@ -23,3 +23,5 @@
    run the app:
      $ DEBUG=athos:* npm start
 
+https://github.com/jaredhanson/connect-flash
+https://github.com/sequelize/express-example
