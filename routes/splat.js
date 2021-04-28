@@ -10,7 +10,7 @@ router.use(function (req, res, next) {
 /* GET home page. */
 router.get('/', function(req, res, next) {
   console.log(req.levels);
-  res.render('index', { title: 'Express Splat' });
+  res.render('index', { title: 'Express Splat', levels : req.levels});
 });
 
 module.exports = router;

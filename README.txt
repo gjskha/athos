@@ -25,3 +25,4 @@
 
 https://github.com/jaredhanson/connect-flash
 https://github.com/sequelize/express-example
+https://github.com/passport/express-4.x-local-example
