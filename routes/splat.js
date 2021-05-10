@@ -2,19 +2,61 @@ var express = require('express');
 var router = express.Router();
 var sqlite3 = require('sqlite3').verbose();
 var path = require('path');
+var passport = require('passport');
+
+var TransactionDatabase = require("sqlite3-transactions").TransactionDatabase;
+var ensureLoggedIn = require('connect-ensure-login').ensureLoggedIn;
+var diff = require('simplediff');
+
+/* global flags for requested Categories */
+const NOTFOUND = 0;
+const FOUND = 1;
+const LOCKED = 2;
+const DELETED = 3;
 
 const dbfile = path.join(__dirname, '../db', 'database.db');
-dbh = new sqlite3.Database(dbfile, (err) => {
+/*dbh = new sqlite3.Database(dbfile, (err) => {
   if (err) {
     return console.error(err.message);
   }
 });
+*/
+
+// Wrap sqlite3 database
+var dbh = new TransactionDatabase(
+    new sqlite3.Database(dbfile, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE)
+);
+
+// meant for straight sqlite
+// https://dev.to/michelc/use-sqlite3-in-async-await-mode-57ke
+dbh.query = function (sql, params) {
+  var that = this;
+  return new Promise(function (resolve, reject) {
+    that.all(sql, params, function (error, rows) {
+      if (error)
+        reject(error);
+      else
+        resolve({ rows: rows });
+    });
+  });
+};
+/////////////////////////////////////////////////////////////
+
 
 // invoked for any requests passed to this router
 router.use(function (req, res, next) {
-  req.categoryData = {};
+
+  req.categoryData = {
+     candidateId : null,
+     candidateText : req.baseUrl,
+     blockId : null,
+     revisionId : null,
+     categoryText : null,
+     revisionText : null,
+     userID: null,
+  };
   req.categoryData.levels = req.baseUrl.split('/');
-  	
+ 
   const findCatQuery = 
   `SELECT CATEGORYID 
      FROM CATEGORIES
@@ -27,24 +69,48 @@ router.use(function (req, res, next) {
   
     if (row) {
         // console.log("in pre, category exists");
-        req.categoryData.CATEGORYID = row.CATEGORYID;
-        console.log(req.CATEGORYID);
+        req.categoryData.categoryId = row.CATEGORYID;
+        console.log(`categoryId is ${row.CATEGORYID}`);
     } else {
         console.log("category does not exist");
-        req.categoryData.CATEGORYID = null;
+        //req.categoryData.CATEGORYID = null;
+        req.categoryData.categoryId = null;
     } 	  
     
   });
 
+
   next();
 });
 
-/* The root level category needs special treatment */
-router.get('/', function(req, res, next) {
-   console.log(req.categoryData.CATEGORYID);
+// create route
+/*router.post('/', ensureLoggedIn('/users/login'), function(req, res, next) {
 
-   console.log("in router get CATEGORYID is ");
-   console.log(req.categoryData.CATEGORYID);
+   req.categoryData.candidateText;
+   const created = new Date();
+
+       res
+        .status(200)
+        .end();       
+});
+*/
+
+// updating (a block for) a category
+router.put('/', function(req, res, next) {
+});
+
+// deleting a category
+router.delete('/', function(req, res, next) {
+});
+
+
+// TBD: Ajax vs. browser
+
+/* The root level category gets special treatment in index.routes */
+router.get('/', function(req, res, next) {
+
+  console.log("in router get CATEGORYID is ");
+  console.log(req.categoryData.categoryId);
 
   const pageDataQuery = 
   `SELECT C.CATEGORYTEXT, 
@@ -66,10 +132,32 @@ router.get('/', function(req, res, next) {
     if (err) {
       return console.error(err.message);
     }
-    console.log(row);	  
-    if (row) {
-      	    
-      res.render('page', { 
+
+    //if (row) {
+    if (typeof(row) !== "undefined") {
+      
+      // TODO pass in the categoryData object	    
+      console.log(row);	
+ 
+      req.categoryData.categoryText = row.CATEGORYTEXT;
+      req.categoryData.categoryId = row.CATEGORYID;
+      req.categoryData.parentId = row.PARENT; 
+      req.categoryData.blockTitle = row.TITLE;
+      req.categoryData.blockId = row.BLOCKID; 
+      req.categoryData.created = row.CREATED;
+      req.categoryData.username = row.USERNAME; // who created this revision. not the logged in user
+      req.categoryData.revisionText = row.TEXT;
+      req.categoryData.state = FOUND;
+ 
+      // send back a 200 response and the json object
+      res
+        .status(200)
+        .set('Content-Type', 'text/plain')
+        .send(req.categoryData)
+        .end();       
+
+      // to browser for debugging 
+      /* res.render('page', { 
         categorytext : row.CATEGORYTEXT,
         categoryid : row.CATEGORYID, 
         parentid : row.PARENT, 
@@ -79,39 +167,60 @@ router.get('/', function(req, res, next) {
         username : row.USERNAME, 
         text : row.TEXT, 
         //state : req.CategoryData.state,
-        state : "state is tbd logic",
+        state : "state",
         levels : req.categoryData.levels,
-      });
-    
+      });*/
 
      } else {
 
+       req.categoryData.state = NOTFOUND;
+       //check for logged in
+       
+       // require('connect-ensure-login').ensureLoggedIn();
+
+      /////////
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+         if (req.session) {
+           req.session.returnTo = req.originalUrl || req.url;
+         }
+
+         return res.redirect('/users/login');
+      }
+      /////////
+
        createCategory(req,res);
 
-     }
+       res.redirect(req.url);
+       //res.render('page', {
+       // });
+
+     } // else
 	     
     });
 
  });
 
-// TBD: Ajax vs. browser
-router.post('/category/:category_id', function(req, res, next) {
-});
-
 function createCategory(req,res) {
   
-  let candidateCategory = "/";
+  let candidateCategory = "";
   let parentId = 1;
   console.log(req.categoryData.levels);
 
-  for (let i = 1; i < req.categoryData.levels.length; i++) {
+  req.categoryData.levels.shift();
 
-    if (i == req.categoryData.levels.length -1) {
-      //console.log(candidateCategory + req.categoryData.levels[i] );
-      candidateCategory = candidateCategory + req.categoryData.levels[i] ;
+  // console.log(req.categoryData.levels);
+	
+  for (let i = 0; i < req.categoryData.levels.length; i++) {
+
+    if (i === 0) {
+
+      candidateCategory = candidateCategory + "/" + req.categoryData.levels[i];
+
+    } else if (i === req.categoryData.levels.length -1) {
+      candidateCategory = candidateCategory + "/" + req.categoryData.levels[i];
+
     } else {
 
-      //console.log(candidateCategory + req.categoryData.levels[i] + "/");
       candidateCategory = candidateCategory + req.categoryData.levels[i] + "/";
     }
     
@@ -125,7 +234,12 @@ function createCategory(req,res) {
        return console.error(err.message);
       }
 
-      if (row) {
+      //console.log("typeof row is "+typeof(row));
+      //if (row)
+      if (typeof(row) !== "undefined") {
+
+        console.log(`for candidate ${candidateCategory} id ${row.CATEGORYID}`)
+        console.log("row exists- typeof row is "+typeof(row));
 
         parentId = row.CATEGORYID;
         console.log("parentid is now "+parentId);
@@ -133,147 +247,116 @@ function createCategory(req,res) {
       } else {
 
         console.log(`category ${candidateCategory} does not exist`);
+  
+        let userId;
+        //let userID = req.user.USERID;
+        if (typeof(req.user) !== "undefined") { 
+           console.log("userID is "+req.user.USERID);
+           userId = req.user.USERID;
+        }
 
-        const createCategoryStmt = 
-        `INSERT INTO CATEGORIES (CATEGORYTEXT,PARENT,CREATED) 
-        VALUES (?,?,DATETIME('now'))`;
-        dbh.run(createCategoryStmt, [candidateCategory, parentId], (err) => {
+/*
+        let candidateObject = {
+           candidateId : null,
+           blockId : null,
+           revisionId : null,
+           categoryText : null,
+           revisionText : null,
+              userId: userId,
+        };
+*/
+
+     /* When a category is created we need to also create an initial Revision, Block, Revision, and Blocks_Revisions */
+     dbh.beginTransaction(function(err, transaction) {
+        dbh.run(`INSERT INTO CATEGORIES (CATEGORYTEXT,PARENT,CREATED) VALUES (?,?,DATETIME('now'))`, [candidateCategory, parentId], (err) => {
+          if (err) {
+            console.error(err.message);
+          }
+          //console.log(`A row has been inserted into categories with rowid ${this.lastID}`);
+         transaction.rollback(function(err) {
+              if (err) return console.log(`Error: ${err.message}`);
+	 });
+      });
+
+/*
+        const findLastCategory = `SELECT CATEGORYTEXT, CATEGORYID FROM CATEGORIES WHERE CATEGORYID = last_insert_rowid()`;
+  
+        // In case you want to keep the callback as the 3rd parameter, you should set param to "[]"
+        dbh.get(findLastCategory, (err, row) => {
+
           if (err) {
             return console.error(err.message);
           }
 
-          console.log(`A row has been inserted with rowid ${this.lastID}`);
-      });
+          // console.log(row);
 
-       const createBlockStmt = 
-        `INSERT INTO BLOCKS (TITLE, CREATED, TYPE) VALUES ((SELECT MAX(CATEGORYTEXT) FROM CATEGORIES), DATETIME('now'), 1)`;
-        dbh.run(createBlockStmt, [candidateCategory], (err) => {
+          if (typeof(row) !== "undefined") {
+
+	    console.log(row);
+	    console.log(`A row has been inserted. categoryText is ${row.categoryText}`);
+
+            candidateObject.candidateId = row.CATEGORYID;
+            candidateObject.categoryText = row.CATEGORYTEXT;
+
+          } else {
+            console.log(`category row did NOT change`);
+          
+            transaction.rollback(function(err) {
+              if (err) return console.log(`Error: ${err.message}`);
+	    });
+
+         }
+
+        }); */
+
+        dbh.run(`INSERT INTO BLOCKS (TITLE, CREATED, TYPE) VALUES ((SELECT CATEGORYTEXT FROM CATEGORIES WHERE CATEGORYID = last_insert_rowid()), DATETIME('now'), 1)`, (err) => {
           if (err) {
             return console.error(err.message);
-          }
-      });
+            transaction.rollback(function(err) {
+              if (err) return console.log(`Error: ${err.message}`);
+	    });
 
-      const createRelationStmt = 
-        `INSERT INTO BLOCKS_CATEGORIES (BLOCKID, CATEGORYID) VALUES ((SELECT MAX(BLOCKID) FROM BLOCKS),(SELECT MAX(CATEGORYID) FROM CATEGORIES))`;
-        //dbh.run(createRelationStmt, [], (err) => {
-        dbh.run(createRelationStmt, null, (err) => {
+          }
+
+        });
+
+        dbh.run(`INSERT INTO BLOCKS_CATEGORIES (BLOCKID, CATEGORYID) VALUES ((SELECT MAX(BLOCKID) FROM BLOCKS),(SELECT MAX(CATEGORYID) FROM CATEGORIES))`,  (err) => {
           if (err) {
             return console.error(err.message);
-          }
-      });
 
-     const createRevisionStmt = 
-        `INSERT INTO REVISIONS (TEXT, BLOCKID, CREATED, USERID) VALUES ("", (SELECT MAX(BLOCKID) FROM BLOCKS),DATETIME("now"), ? )`;
-        dbh.run(createRelationStmt, [req.user], (err) => {
+            transaction.rollback(function(err) {
+              if (err) return console.log(`Error: ${err.message}`);
+	    });
+
+          }
+
+          console.log(`A row has been inserted into blocks_categories with rowid ${this.lastID}`);
+        });
+
+        dbh.run(`INSERT INTO REVISIONS (TEXT, BLOCKID, CREATED, USERID) VALUES ("", (SELECT MAX(BLOCKID) FROM BLOCKS),DATETIME("now"), ? )`, [req.user.USERID], (err) => {
           if (err) {
+
             return console.error(err.message);
+           
+            transaction.rollback(function(err) {
+              if (err) return console.log(`Error: ${err.message}`);
+	    });
           }
 
-      });
-    }
-    // createBlock(req,res);
+          console.log(`A row has been inserted into revisions with rowid ${this.lastID}`);
+        });
+
+        transaction.commit(function(err) {
+          if (err) return console.log(`Error: ${err.message}`);
+          console.log(`creation of new Category ${req.categoryData.categoryText}`);
+	});
+     });
+
+     } // else
     });
+    
   }
-   res.render('page', {
-     levels : req.categoryData.levels,
-   });
-    
-
-   
-}
-
-router.post('/block/:block_id', function(req, res, next) {
-});
-
-function createBlock(blockTitle,blockType) {
-  const createBlockQuery = 
-    `insert into blocks (title,created,type) 
-     values (?,datetime('now'),?)`
-  	
-  	
 
 }
-
-function createRevision(blockId,revisionText) {
-
-
-
-}
-
-// put /block/:block_id
-function editBlock() {
-
-}
-
-// put /category/:category_id
-function editCategory() {}
-
-// get /block/:block_id
-function getBlock() {}
-
-// get /category/:category_id
-function getCategory(requestedCategory) {
-  const pageDataQuery = 
-  `SELECT C.CATEGORYTEXT, 
-          C.CATEGORYID, 
-          C.PARENT, 
-	  B.TITLE, 
-	  B.BLOCKID, 
-	  R.CREATED, 
-	  U.USERNAME, 
-	  R.TEXT 
-   FROM USERS U 
-   INNER JOIN REVISIONS R ON U.USERID = R.USERID 
-   INNER JOIN BLOCKS B ON R.BLOCKID = B.BLOCKID 
-   INNER JOIN BLOCKS_CATEGORIES X ON X.BLOCKID = B.BLOCKID 
-   INNER JOIN CATEGORIES C ON C.CATEGORYID = X.CATEGORYID 
-   WHERE C.CATEGORYTEXT = ?`;
-
-  dbh.get(pageDataQuery, [requestedCategory], (err, row) => {
-    if (err) {
-      return console.error(err.message);
-    }
-
-    if (row) {
-      res.render('page', { 
-        categorytext : row.CATEGORYTEXT,
-        categoryid : row.CATEGORYID, 
-        parentid : row.PARENT, 
-        title : row.TITLE, 
-        blockid : row.BLOCKID, 
-        created : row.CREATED, 
-        username : row.USERNAME, 
-        text : row.TEXT, 
-        //state : req.CategoryData.state,
-        state : "state is tbd logic",
-        levels : req.categoryData.levels,
-      });
-    
-
-      // return row;
-    }	    
-  });
-
-  	
-}
-
-// get /category/:categoryid/childcategories
-function getChildCategories() {}
-// special case for root?
-
-// get /category/:categoryid/block 
-function getCategoryBlock() {}
-
-// patch /block/:block_id/category/:category_id
-function addCategoryToBlock()  {}
-// multiple categories can have one block
-
-// delete /block/:block_id/category/:category_id
-function removeCategoryFromBlock() {}
-
-// get /block/:block_id/categories 
-function getBlockCategories() {} // getCategories –? {};
-// (for all categories pointing to a block)
-
 
 module.exports = router;
