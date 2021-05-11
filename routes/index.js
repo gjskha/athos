@@ -46,7 +46,7 @@ router.get('/', function(req, res, next) {
 	 ORDER BY CREATED DESC`;
   const blockid = 1;
 
-var r = req.dbh.get(q, [blockid], (err, row) => {
+req.dbh.get(q, [blockid], (err, row) => {
   if (err) {
     return console.error(err.message);
   }
@@ -56,12 +56,16 @@ var r = req.dbh.get(q, [blockid], (err, row) => {
 
 });
 
-  console.log(r);
-  res.render('index', { title: 'Express' });
+  res.render('index', { 
+    title: 'Welcome to Gwiki' 
+
+  });
+
 });
 
 /* create Revision */
-router.post('/internal/revisions', ensureLoggedIn('/users/login'), function(req, res, next) {
+//router.post('/internal/revisions', ensureLoggedIn('/users/login'), async function(req, res, next) {
+router.post('/internal/revisions', ensureLoggedIn('/users/login'),  function(req, res, next) {
 
    const revisionText = req.body.revision_text;
    const blockId = req.body.block_id;
@@ -69,9 +73,10 @@ router.post('/internal/revisions', ensureLoggedIn('/users/login'), function(req,
    // https://stackoverflow.com/questions/22252226/passport-local-strategy-and-curl
    const revisionUser = req.user.USERID;
    
-   // req.categoryData....
-   if (revisionText && blockId && revisionDate && revisionUser) {
+   //if (revisionText && blockId && revisionDate && revisionUser) {
+   if (revisionText && blockId && revisionUser) {
      // const result = createRevision(revisionText,blockId,revisionDate,revisionUser); 
+     //const result = await createRevision(revisionText,blockId,revisionUser); 
      const result = createRevision(revisionText,blockId,revisionUser); 
 
      if (typeof(result) !== "undefined") {
@@ -93,7 +98,8 @@ router.post('/internal/revisions', ensureLoggedIn('/users/login'), function(req,
    }
 });
 
-async function createRevision(revisionText,blockId,revisionDate,revisionUser) {
+// async function createRevision(revisionText,blockId,revisionDate,revisionUser) {
+async function createRevision(revisionText,blockId,revisionUser) {
  
   let result;
   try {
@@ -108,20 +114,19 @@ async function createRevision(revisionText,blockId,revisionDate,revisionUser) {
 }
 
 /* Compare revisions */
-// TBD: URL
-//router.get('/internal/revisions/:block_id', function(req, res, next) {
-router.get('/internal/revisions/:left/:right', function(req, res, next) {
+router.get('/internal/revisions/:left/:right', async function(req, res, next) {
 
    const left = req.params.left;
    const right = req.params.right;
    
    if (left && right) {
 
-     const result = compareRevisions(left,right); 
+     const result = await compareRevisions(left,right); 
+     // console.log(result);
 
      if (typeof(result) !== "undefined") {
        res
-         .status("201")
+         .status("200")
          .set('Content-Type', 'text/plain')
          .send({ 
             "result" : result,
@@ -130,37 +135,98 @@ router.get('/internal/revisions/:left/:right', function(req, res, next) {
 
      } else {
         res
-          .status("403")
+          .status("400")
           .set('Content-Type', 'text/plain')
-          .send({ "Error" : "missing parameter" }) 
+          .send({ "Error" : "comparison unavailable" }) 
           .end();
      }
+   } else {
+     res
+       .status("403")
+       .set('Content-Type', 'text/plain')
+       .send({ "Error" : "Missing parameter" }) 
+       .end();
    }
 });
 
 async function compareRevisions(left,right) {
 
-  const revisionCompareQuery = `select REVISIONID,TEXT,CREATED from revisions where revisionid = ? or revisionid = ?`;
+  let result;
+  let diffText;
 
-  //const foo = diff.diff('aaa', 'ddd');
-  //console.log("diff is "); console.log(foo);
+  try {
+    const revisionCompareQuery = `select REVISIONID,TEXT,CREATED from revisions where revisionid = ? or revisionid = ?`;
+    result = await dbh.query(revisionCompareQuery, [left,right]);
+
+  } catch (e) { 
+    console.error(e.message); 
+  }
+ 
+  if (result.rows.length === 2) {
+
+    diffText = {
+      "left" : result.rows[0],
+       "right" : result.rows[1],
+      "result" : diff.diff(result.rows[0].TEXT,result.rows[1].TEXT),
+    }
+  } 
+
+  return diffText;
 }
 
-// TBD AddRevision
+// Get categories belonging to a parent category
+router.get('/internal/categories/:categoryid/children', async function(req, res, next) {
+  const categoryid = req.params.categoryid;
+  
+  if (typeof(categoryid) !== "undefined") {
 
-// get /category/:categoryid/childcategories
-function getChildCategories() {
+  const result = await compareRevisions(categoryid); 
 
+    console.log(result);
+
+    // is currently undefined
+    if (typeof(result) !== "undefined") {
+      res
+        .status("200")
+        .set('Content-Type', 'text/plain')
+        .send({ 
+           "result" : result,
+         }) 
+         .end();
+
+     } else {
+        res
+          .status("400")
+          .set('Content-Type', 'text/plain')
+          .send({ "Error" : "resource unavailable" }) 
+          .end();
+     }
+   } else {
+     res
+       .status("403")
+       .set('Content-Type', 'text/plain')
+       .send({ "Error" : "Missing parameter" }) 
+       .end();
+   }
+});
+
+async function getChildCategories(parentId) {
+  
+  let result;
+
+  try {
    // can be 0 or more results
-   const getChildrenQuery = `SELECT CATEGORYID,CATEGORYTEXT FROM CATEGORIES WHERE PARENT = ?`;
+    const getChildrenQuery = `SELECT CATEGORYTEXT FROM CATEGORIES WHERE PARENT = ?`;
+    result = await dbh.query(getChildrenQuery, [parentId]);
 
+    console.log(result);
+
+  } catch (e) { 
+    console.error(e.message); 
+  }
+ 
+  return result;
 }
-
-
-// X
-// get /category/:categoryid/block 
-//function getCategoryBlock() {
-//}
 
 // patch /block/:block_id/category/:category_id
 function addCategoryToBlock()  {}
@@ -172,118 +238,6 @@ function removeCategoryFromBlock() {}
 // get /block/:block_id/categories 
 function getBlockCategories() {} // getCategories {};
 // (for all categories pointing to a block)
-
-
-// X
-/* get Block */
-/* router.get('/blocks/:block_id', function(req, res, next) {
-
-   const blockId = req.params.block_id;
-   const getBlockStmt = `SELECT TITLE,CREATED,TYPE FROM BLOCKS WHERE BLOCKID = ?`;
-   
-   dbh.get(getBlockStmt, (err, row) => {
-      if (err) {
-         return console.error(err.message);
-      }
-
-      if (typeof(row) !== "undefined") {
-
-      console.log(`Fetching ${blockId}`);
-
-       // ??
-       res
-         .status(200)
-         .set('Content-Type', 'text/plain')
-         .send({ 
-            'blockTitle' : row.TITLE, 
-            'blockCreated' : row.CREATED, 
-            'blockType' : row.TYPE, 
-          })
-        .end();       
-
-    } else {
-      console.log(`error, no block with blockID ${blockId}`);
-
-       res
-        .status("404")
-        .set('Content-Type', 'text/plain')
-        .send({ "Error" : `no blockId ${blockId}` }) 
-        .end();
-    }
-  });
-});
-
-*/
-
-// X
-// get /category/:category_id
-// this url doesn't make sense
-/*router.post('/category/:category_id', ensureLoggedIn('/users/login'), function(req, res, next) {
-
-       const categoryText = req.body.categoryText;
-       const created = new Date();
-
-       res
-        .status(200)
-        .set('Content-Type', 'text/plain')
-        .send(req.categoryData)
-        .end();       
-});
-*/
-
-// X
-//function createBlock(blockTitle,blockType) {
-//   const createBlockQuery = `insert into blocks (title,created,type) values (?,datetime('now'),?)`;
-//}
-
-
-// put /category/:category_id
-//function editCategory() {
-//}
-
-// get /category/:category_id
-//function getCategory(requestedCategory) {
-//  const pageDataQuery = 
-//  `SELECT C.CATEGORYTEXT, 
-//          C.CATEGORYID, 
-//          C.PARENT, 
-//	  B.TITLE, 
-//	  B.BLOCKID, 
-//	  R.CREATED, 
-//	  U.USERNAME, 
-//	  R.TEXT 
-//   FROM USERS U 
-//   INNER JOIN REVISIONS R ON U.USERID = R.USERID 
-//   INNER JOIN BLOCKS B ON R.BLOCKID = B.BLOCKID 
-//   INNER JOIN BLOCKS_CATEGORIES X ON X.BLOCKID = B.BLOCKID 
-//   INNER JOIN CATEGORIES C ON C.CATEGORYID = X.CATEGORYID 
-//   WHERE C.CATEGORYTEXT = ?`;
-//
-//  dbh.get(pageDataQuery, [requestedCategory], (err, row) => {
-//    if (err) {
-//      return console.error(err.message);
-//    }
-//
-//    if (row) {
-//      res.render('page', { 
-//        categorytext : row.CATEGORYTEXT,
-//        categoryid : row.CATEGORYID, 
-//        parentid : row.PARENT, 
-//        title : row.TITLE, 
-//        blockid : row.BLOCKID, 
-//        created : row.CREATED, 
-//        username : row.USERNAME, 
-//        text : row.TEXT, 
-//        //state : req.CategoryData.state,
-//        state : "state is tbd logic",
-//        levels : req.categoryData.levels,
-//      });
-//    
-//
-//      // return row;
-//    }	    
-//  });
-//}
 
 // get /search
 function performSearch() {}
