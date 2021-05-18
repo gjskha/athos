@@ -7,7 +7,7 @@ a {
   color: #00B7FF;
 }
 
-.pill-nav a {
+.pill_nav a {
   display: inline-block;
   color: black;
   text-align: center;
@@ -17,12 +17,12 @@ a {
   border-radius: 5px;
 }
 
-.pill-nav a:hover {
+.pill_nav a:hover {
   background-color: #ddd;
   color: black;
 }
 
-.pill-nav a.active {
+.pill_nav a.active {
   background-color: dodgerblue;
   color: white;
 }

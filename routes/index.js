@@ -276,10 +276,11 @@ async function listRevisions(blockId) {
 
   let result;
 
-  const listRevisionsQuery = `SELECT REVISIONID,CREATED,USERID 
-                                FROM REVISIONS 
-                               WHERE BLOCKID = ? 
-                            ORDER BY CREATED DESC`;
+  const listRevisionsQuery = `SELECT R.REVISIONID,R.CREATED,U.USERNAME 
+                                FROM REVISIONS R, USERS U
+                               WHERE R.BLOCKID = ?
+                                 AND U.USERID = R.USERID
+                            ORDER BY R.CREATED DESC`;
 
  try {
     result = await dbh.query(listRevisionsQuery, [blockId]);
@@ -363,7 +364,7 @@ router.patch('/internal/blocks/:block_id/categories/:category_id', ensureLoggedI
   
     const result = await addCategoryToBlock(blockId,categoryId); 
   
-    console.log(result);
+    // console.log(result);
   
     if (typeof(result) !== "undefined") {
       res
@@ -391,10 +392,9 @@ router.patch('/internal/blocks/:block_id/categories/:category_id', ensureLoggedI
 async function addCategoryToBlock(blockId, categoryId)  {
 
   const blockCategoryStmt = `INSERT INTO BLOCKS_CATEGORIES (BLOCKID,CATEGORYID) VALUES (?,?)`;
+
   let result;
-
   try {
-
     result = await dbh.query(blockCategoryStmt, [blockId, categoryId]);
 
   } catch (e) { 
@@ -411,7 +411,61 @@ async function addCategoryToBlock(blockId, categoryId)  {
 function removeCategoryFromBlock() {}
 
 // get /block/:block_id/categories 
-function getBlockCategories() {} // getCategories {};
+router.get('/internal/blocks/:block_id/categories', async function(req, res, next) {
+  const blockId = req.params.block_id;
+
+    if (typeof(blockId) !== "undefined") {
+  
+    const result = await getBlockCategories(blockId); 
+  
+    console.log(result);
+  
+    if (typeof(result) !== "undefined") {
+      res
+        .status("200")
+        .send({ "result" : result })
+        .end();
+  
+     } else {
+        res
+          .status("400")
+          .set('Content-Type', 'text/plain')
+          .send({ "Error" : "resource unavailable" }) 
+          .end();
+     }
+
+   } else {
+     res
+       .status("403")
+       .set('Content-Type', 'text/plain')
+       .send({ "Error" : "Missing parameter" }) 
+       .end();
+   }
+
+});
+
+async function getBlockCategories(blockId) {
+
+  const blockCategoriesQuery = 
+   `SELECT C.CATEGORYTEXT 
+   FROM BLOCKS B 
+   INNER JOIN BLOCKS_CATEGORIES X 
+   ON B.BLOCKID = X.BLOCKID 
+   INNER JOIN CATEGORIES C 
+   ON C.CATEGORYID = X.CATEGORYID 
+   WHERE B.BLOCKID = ?`;
+
+  let result;
+  try {
+    result = await dbh.query(blockCategoriesQuery, [blockId]);
+
+  } catch (e) { 
+    console.error(e.message); 
+  }
+
+  return result;
+
+} // getCategories {};
 // (for all categories pointing to a block)
 
 // get /search

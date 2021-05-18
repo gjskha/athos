@@ -1,4 +1,6 @@
-<h1>
+<h1>{{title}}</h1>
+
+<h4>
 {{#levels}}
   <a href="{{this.href}}">{{this.name}}</a> 
 
@@ -6,26 +8,28 @@
   &rarr;
   {{/unless}}
 {{/levels}}
-</h1>
+</h4>
 
-<div class="pill-nav">
+<div id="navigation" class="pill_nav">
   <a id="view" class="active" href="">View</a>
   <a id="edit" href="#edit">Edit</a>
   <a id="history" href="#history">History</a>
   <a id="categories" href="#categories">Categories</a>
 </div>
 
-<ul class="page">
-<li>Title is {{title}}
+<div id="page_data">
+  <ul class="page">
+    <!-- <li>Title is {{title}} -->
 
-<!-- <li>{{categorytext}} -->
-<!-- <li>{{categoryid}}
-<li>{{parentid}}
-<li>{{blockid}} -->
- <div id="blockid" style="display: none">{{blockid}}</div>
-<li>Revision Text is {{text}}
-<li>last edited at {{created}} by {{username}}
-</ul>
+    <!-- <li>{{categorytext}} -->
+    <!-- <li>{{categoryid}}
+    <li>{{parentid}}
+    <li>{{blockid}} -->
+    <div id="blockid" style="display: none">{{blockid}}</div>
+    <li>Revision Text is {{text}}
+     <li>last edited at {{created}} by {{username}}
+  </ul>
+</div>
 
 <script src="/javascripts/page.js"></script>
 
