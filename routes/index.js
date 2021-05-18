@@ -27,7 +27,8 @@ dbh.query = function (sql, params) {
       if (error)
         reject(error);
       else
-        resolve({ rows: rows });
+        //resolve({ rows: rows });
+        resolve(rows);
     });
   });
 };
@@ -43,10 +44,11 @@ router.get('/', function(req, res, next) {
   var q = `SELECT * 
 	     FROM REVISIONS 
 	    WHERE BLOCKID = ?
+              AND STATUS = 0
 	 ORDER BY CREATED DESC`;
   const blockid = 1;
 
-req.dbh.get(q, [blockid], (err, row) => {
+dbh.get(q, [blockid], (err, row) => {
   if (err) {
     return console.error(err.message);
   }
@@ -122,7 +124,6 @@ router.get('/internal/revisions/:left/:right', async function(req, res, next) {
    if (left && right) {
 
      const result = await compareRevisions(left,right); 
-     // console.log(result);
 
      if (typeof(result) !== "undefined") {
        res
@@ -162,12 +163,16 @@ async function compareRevisions(left,right) {
     console.error(e.message); 
   }
  
-  if (result.rows.length === 2) {
+  //if (result.rows.length === 2) {
+  if (result.length === 2) {
 
     diffText = {
-      "left" : result.rows[0],
-       "right" : result.rows[1],
-      "result" : diff.diff(result.rows[0].TEXT,result.rows[1].TEXT),
+      //"left" : result.rows[0],
+      //"right" : result.rows[1],
+      //"diff" : diff.diff(result.rows[0].TEXT,result.rows[1].TEXT),
+      "left" : result[0],
+      "right" : result[1],
+      "diff" : diff.diff(result[0].TEXT,result[1].TEXT),
     }
   } 
 
@@ -175,16 +180,15 @@ async function compareRevisions(left,right) {
 }
 
 // Get categories belonging to a parent category
-router.get('/internal/categories/:categoryid/children', async function(req, res, next) {
-  const categoryid = req.params.categoryid;
+router.get('/internal/categories/:category_id/children', async function(req, res, next) {
+  const categoryId = req.params.category_id;
   
-  if (typeof(categoryid) !== "undefined") {
-
-  const result = await compareRevisions(categoryid); 
-
+  if (typeof(categoryId) !== "undefined") {
+  
+    const result = await getChildCategories(categoryId); 
+  
     console.log(result);
-
-    // is currently undefined
+  
     if (typeof(result) !== "undefined") {
       res
         .status("200")
@@ -193,7 +197,7 @@ router.get('/internal/categories/:categoryid/children', async function(req, res,
            "result" : result,
          }) 
          .end();
-
+  
      } else {
         res
           .status("400")
@@ -201,6 +205,7 @@ router.get('/internal/categories/:categoryid/children', async function(req, res,
           .send({ "Error" : "resource unavailable" }) 
           .end();
      }
+
    } else {
      res
        .status("403")
@@ -215,21 +220,191 @@ async function getChildCategories(parentId) {
   let result;
 
   try {
-   // can be 0 or more results
+    // can be 0 or more results
     const getChildrenQuery = `SELECT CATEGORYTEXT FROM CATEGORIES WHERE PARENT = ?`;
     result = await dbh.query(getChildrenQuery, [parentId]);
+ 
+    result.forEach((item, index, arr) => {
+      arr[index] = item.CATEGORYTEXT;
+    }); 
+ 
+  } catch (e) { 
+    console.error(e.message); 
+  }
 
+  return result;
+}
+
+// List Revisions
+router.get('/internal/blocks/:block_id/revisions', async function(req, res, next) {
+
+  const blockId = req.params.block_id;
+
+   if (typeof(blockId) !== "undefined") {
+  
+    const result = await listRevisions(blockId); 
+  
     console.log(result);
+  
+    if (typeof(result) !== "undefined") {
+      res
+        .status("200")
+        .set('Content-Type', 'text/plain')
+        .send({ 
+           "result" : result,
+         }) 
+         .end();
+  
+     } else {
+        res
+          .status("400")
+          .set('Content-Type', 'text/plain')
+          .send({ "Error" : "resource unavailable" }) 
+          .end();
+     }
+
+   } else {
+     res
+       .status("403")
+       .set('Content-Type', 'text/plain')
+       .send({ "Error" : "Missing parameter" }) 
+       .end();
+   }
+});
+
+async function listRevisions(blockId) {
+
+  let result;
+
+  const listRevisionsQuery = `SELECT REVISIONID,CREATED,USERID 
+                                FROM REVISIONS 
+                               WHERE BLOCKID = ? 
+                            ORDER BY CREATED DESC`;
+
+ try {
+    result = await dbh.query(listRevisionsQuery, [blockId]);
 
   } catch (e) { 
     console.error(e.message); 
   }
- 
+
   return result;
+
 }
 
+// get a particular revision
+router.get('/internal/blocks/:block_id/revisions/:revision_id', async function(req, res, next) {
+
+  const blockId = req.params.block_id;
+  const revisionId = req.params.revision_id;
+
+    if ((typeof(blockId) !== "undefined") && (typeof(revisionId) !== "undefined")) {
+  
+    const result = await getRevision(blockId,revisionId); 
+  
+    console.log(result);
+  
+    if (typeof(result) !== "undefined") {
+      res
+        .status("200")
+        .set('Content-Type', 'text/plain')
+        .send({ 
+           "result" : result,
+         }) 
+         .end();
+  
+     } else {
+        res
+          .status("400")
+          .set('Content-Type', 'text/plain')
+          .send({ "Error" : "resource unavailable" }) 
+          .end();
+     }
+
+   } else {
+     res
+       .status("403")
+       .set('Content-Type', 'text/plain')
+       .send({ "Error" : "Missing parameter" }) 
+       .end();
+   }
+});
+
+async function getRevision(blockId,revisionId) {
+
+  let result;
+
+  const getRevisionQuery = `SELECT TEXT,CREATED,USERID 
+                                FROM REVISIONS 
+                               WHERE BLOCKID = ?
+                                 AND REVISIONID = ? 
+                            ORDER BY CREATED DESC`;
+
+  try {
+
+    result = await dbh.query(getRevisionQuery, [blockId, revisionId]);
+
+  } catch (e) { 
+    console.error(e.message); 
+  }
+
+  return result;
+
+}
+
+// Add a category to block
 // patch /block/:block_id/category/:category_id
-function addCategoryToBlock()  {}
+router.patch('/internal/blocks/:block_id/categories/:category_id', ensureLoggedIn('/users/login'), async function(req, res, next) {
+
+  const blockId = req.params.block_id;
+  const categoryId = req.params.category_id;
+
+    if ((typeof(blockId) !== "undefined") && (typeof(categoryId) !== "undefined")) {
+  
+    const result = await addCategoryToBlock(blockId,categoryId); 
+  
+    console.log(result);
+  
+    if (typeof(result) !== "undefined") {
+      res
+        .status("201")
+        .end();
+  
+     } else {
+        res
+          .status("400")
+          .set('Content-Type', 'text/plain')
+          .send({ "Error" : "resource unavailable" }) 
+          .end();
+     }
+
+   } else {
+     res
+       .status("403")
+       .set('Content-Type', 'text/plain')
+       .send({ "Error" : "Missing parameter" }) 
+       .end();
+   }
+
+});
+
+async function addCategoryToBlock(blockId, categoryId)  {
+
+  const blockCategoryStmt = `INSERT INTO BLOCKS_CATEGORIES (BLOCKID,CATEGORYID) VALUES (?,?)`;
+  let result;
+
+  try {
+
+    result = await dbh.query(blockCategoryStmt, [blockId, categoryId]);
+
+  } catch (e) { 
+    console.error(e.message); 
+  }
+
+  return result;
+
+}
+
 // multiple categories can have one block
 
 // delete /block/:block_id/category/:category_id

@@ -6,13 +6,17 @@ var passport = require('passport');
 
 var TransactionDatabase = require("sqlite3-transactions").TransactionDatabase;
 var ensureLoggedIn = require('connect-ensure-login').ensureLoggedIn;
-var diff = require('simplediff');
+//var diff = require('simplediff');
 
 /* global flags for requested Categories */
 const NOTFOUND = 0;
 const FOUND = 1;
 const LOCKED = 2;
 const DELETED = 3;
+
+/* constants for Revisions */
+const CURRENT = 0;
+const ARCHIVE = 1;
 
 const dbfile = path.join(__dirname, '../db', 'database.db');
 /*dbh = new sqlite3.Database(dbfile, (err) => {
@@ -36,7 +40,8 @@ dbh.query = function (sql, params) {
       if (error)
         reject(error);
       else
-        resolve({ rows: rows });
+        //resolve({ rows: rows });
+        resolve(rows);
     });
   });
 };
@@ -47,16 +52,22 @@ dbh.query = function (sql, params) {
 router.use(function (req, res, next) {
 
   req.categoryData = {
-     candidateId : null,
+     // candidateId : null,
+
      candidateText : req.baseUrl,
      blockId : null,
      revisionId : null,
-     categoryText : null,
-     revisionText : null,
-     userID: null,
+    // categoryText : null, // ??
+    // revisionText : null, // ??
+     userID: null, // ??
   };
+
+  if (!req.user) {
+    req.user = null;
+  } 
+
   req.categoryData.levels = req.baseUrl.split('/');
- 
+
   const findCatQuery = 
   `SELECT CATEGORYID 
      FROM CATEGORIES
@@ -68,9 +79,9 @@ router.use(function (req, res, next) {
     }
   
     if (row) {
-        // console.log("in pre, category exists");
-        req.categoryData.categoryId = row.CATEGORYID;
-        console.log(`categoryId is ${row.CATEGORYID}`);
+       // category exists
+       req.categoryData.categoryId = row.CATEGORYID;
+       console.log(`categoryId ${row.CATEGORYID} exists`);
     } else {
         console.log("category does not exist");
         //req.categoryData.CATEGORYID = null;
@@ -95,8 +106,10 @@ router.use(function (req, res, next) {
 });
 */
 
-// updating (a block for) a category
-router.put('/', function(req, res, next) {
+// updating (a revision of a block for) a category
+router.put('/', ensureLoggedIn('/users/login'), function(req, res, next) {
+  const userRevisionText = req.body.revisionText;
+
 });
 
 // deleting a category
@@ -104,7 +117,19 @@ router.delete('/', function(req, res, next) {
 });
 
 
-// TBD: Ajax vs. browser
+function createBreadCrumbs(levels) {
+
+   let crumbs = [];
+   crumbs[0] = { "name" : "/", "href" : "/" };
+   let crumbHref = ""; 
+   for ( i = 1; i < levels.length; i++) {
+       let href = crumbHref + "/" + levels[i];
+       crumbs[i] = { "name" : levels[i], "href" : href };
+       crumbHref = href;
+   } 
+   
+   return crumbs;
+}
 
 /* The root level category gets special treatment in index.routes */
 router.get('/', function(req, res, next) {
@@ -126,9 +151,10 @@ router.get('/', function(req, res, next) {
    INNER JOIN BLOCKS B ON R.BLOCKID = B.BLOCKID 
    INNER JOIN BLOCKS_CATEGORIES X ON X.BLOCKID = B.BLOCKID 
    INNER JOIN CATEGORIES C ON C.CATEGORYID = X.CATEGORYID 
-   WHERE C.CATEGORYTEXT = ?`;
+   WHERE C.CATEGORYTEXT = ?
+   AND R.STATUS = ?`;
 
-  dbh.get(pageDataQuery, [req.baseUrl], (err, row) => {
+  dbh.get(pageDataQuery, [req.baseUrl, CURRENT], (err, row) => {
     if (err) {
       return console.error(err.message);
     }
@@ -137,7 +163,7 @@ router.get('/', function(req, res, next) {
     if (typeof(row) !== "undefined") {
       
       // TODO pass in the categoryData object	    
-      console.log(row);	
+      //console.log(row);	
  
       req.categoryData.categoryText = row.CATEGORYTEXT;
       req.categoryData.categoryId = row.CATEGORYID;
@@ -150,14 +176,14 @@ router.get('/', function(req, res, next) {
       req.categoryData.state = FOUND;
  
       // send back a 200 response and the json object
-      res
-        .status(200)
-        .set('Content-Type', 'text/plain')
-        .send(req.categoryData)
-        .end();       
+      //res
+      //  .status(200)
+      //  .set('Content-Type', 'text/plain')
+      //  .send(req.categoryData)
+      //  .end();       
 
       // to browser for debugging 
-      /* res.render('page', { 
+      res.render('page', { 
         categorytext : row.CATEGORYTEXT,
         categoryid : row.CATEGORYID, 
         parentid : row.PARENT, 
@@ -167,9 +193,12 @@ router.get('/', function(req, res, next) {
         username : row.USERNAME, 
         text : row.TEXT, 
         //state : req.CategoryData.state,
-        state : "state",
-        levels : req.categoryData.levels,
-      });*/
+        //state : "state",
+        state : req.categoryData.state,
+        user : req.user,
+        //levels : req.categoryData.levels,
+        levels : createBreadCrumbs(req.categoryData.levels),
+      });
 
      } else {
 
@@ -208,8 +237,6 @@ function createCategory(req,res) {
 
   req.categoryData.levels.shift();
 
-  // console.log(req.categoryData.levels);
-	
   for (let i = 0; i < req.categoryData.levels.length; i++) {
 
     if (i === 0) {
@@ -224,7 +251,7 @@ function createCategory(req,res) {
       candidateCategory = candidateCategory + req.categoryData.levels[i] + "/";
     }
     
-    console.log("candidateCategory is "+candidateCategory);
+    console.log(i+" candidateCategory is "+candidateCategory);
 
     const findCatQuery = `SELECT CATEGORYID FROM CATEGORIES WHERE CATEGORYTEXT = ?`;
     
@@ -238,8 +265,8 @@ function createCategory(req,res) {
       //if (row)
       if (typeof(row) !== "undefined") {
 
-        console.log(`for candidate ${candidateCategory} id ${row.CATEGORYID}`)
-        console.log("row exists- typeof row is "+typeof(row));
+        //console.log(`for candidate ${candidateCategory} id ${row.CATEGORYID}`)
+        //console.log("row exists- typeof row is "+typeof(row));
 
         parentId = row.CATEGORYID;
         console.log("parentid is now "+parentId);
@@ -248,12 +275,13 @@ function createCategory(req,res) {
 
         console.log(`category ${candidateCategory} does not exist`);
   
+        /*
         let userId;
         //let userID = req.user.USERID;
         if (typeof(req.user) !== "undefined") { 
            console.log("userID is "+req.user.USERID);
            userId = req.user.USERID;
-        }
+        }*/
 
 /*
         let candidateObject = {
