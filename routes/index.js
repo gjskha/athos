@@ -71,6 +71,7 @@ router.post('/internal/revisions', ensureLoggedIn('/users/login'),  function(req
 
    const revisionText = req.body.revision_text;
    const blockId = req.body.block_id;
+   console.log("revision_text is "+revisionText);
    //const revisionDate = new Date();
    // https://stackoverflow.com/questions/22252226/passport-local-strategy-and-curl
    const revisionUser = req.user.USERID;
@@ -335,11 +336,12 @@ async function getRevision(blockId,revisionId) {
 
   let result;
 
-  const getRevisionQuery = `SELECT TEXT,CREATED,USERID 
-                                FROM REVISIONS 
-                               WHERE BLOCKID = ?
-                                 AND REVISIONID = ? 
-                            ORDER BY CREATED DESC`;
+  const getRevisionQuery = 
+    `SELECT TEXT,CREATED,USERID 
+       FROM REVISIONS 
+      WHERE BLOCKID = ?
+        AND REVISIONID = ? 
+      ORDER BY CREATED DESC`;
 
   try {
 

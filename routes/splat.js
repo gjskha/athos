@@ -145,7 +145,8 @@ router.get('/', function(req, res, next) {
 	  B.BLOCKID, 
 	  R.CREATED, 
 	  U.USERNAME, 
-	  R.TEXT 
+	  R.TEXT, 
+	  R.REVISIONID
    FROM USERS U 
    INNER JOIN REVISIONS R ON U.USERID = R.USERID 
    INNER JOIN BLOCKS B ON R.BLOCKID = B.BLOCKID 
@@ -173,6 +174,7 @@ router.get('/', function(req, res, next) {
       req.categoryData.created = row.CREATED;
       req.categoryData.username = row.USERNAME; // who created this revision. not the logged in user
       req.categoryData.revisionText = row.TEXT;
+      req.categoryData.revisionId = row.REVISIONID;
       req.categoryData.state = FOUND;
  
       // send back a 200 response and the json object
@@ -189,6 +191,7 @@ router.get('/', function(req, res, next) {
         parentid : row.PARENT, 
         title : row.TITLE, 
         blockid : row.BLOCKID, 
+        revisionid : row.REVISIONID, 
         created : row.CREATED, 
         username : row.USERNAME, 
         text : row.TEXT, 
