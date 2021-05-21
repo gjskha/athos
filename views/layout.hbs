@@ -37,8 +37,12 @@
 <div class="header">
 <a href="/" class="logo">Gwiki</a>
   <div class="header-right">
-    <a href="/users/register">Register</a>
-    <a href="/users/login">Login</a>
+    {{#if username}}
+    Logged in as {{username}}
+    {{else}}
+  <a href="/users/register">Register</a>
+  <a href="/users/login">Login</a>
+    {{/if}}
 </div> 
 </div>
 <!-- div id="content"> -->

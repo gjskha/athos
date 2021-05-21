@@ -18,6 +18,17 @@ const dbh = new sqlite3.Database(dbfile, (err) => {
   }
 });
 
+// FIXME
+/* global flags for requested Categories */
+const NOTFOUND = 0;
+const FOUND = 1;
+const LOCKED = 2;
+const DELETED = 3;
+
+/* constants for Revisions */
+const CURRENT = 0;
+const ARCHIVE = 1;
+
 // meant for straight sqlite
 // https://dev.to/michelc/use-sqlite3-in-async-await-mode-57ke
 dbh.query = function (sql, params) {
@@ -68,14 +79,23 @@ dbh.get(q, [blockid], (err, row) => {
 /* create Revision */
 //router.post('/internal/revisions', ensureLoggedIn('/users/login'), async function(req, res, next) {
 router.post('/internal/revisions', ensureLoggedIn('/users/login'),  function(req, res, next) {
+//router.post('/internal/revisions', function(req, res, next) {
 
    const revisionText = req.body.revision_text;
    const blockId = req.body.block_id;
    console.log("revision_text is "+revisionText);
    //const revisionDate = new Date();
    // https://stackoverflow.com/questions/22252226/passport-local-strategy-and-curl
-   const revisionUser = req.user.USERID;
+   //const revisionUser = req.user.USERID;
+   let revisionUser;
    
+   if (req.user) {
+     revisionUser = req.user.USERID;
+     console.log("logged in is "+revisionUser); 
+   } else {
+     console.log("No user logged in"); 
+   }
+
    //if (revisionText && blockId && revisionDate && revisionUser) {
    if (revisionText && blockId && revisionUser) {
      // const result = createRevision(revisionText,blockId,revisionDate,revisionUser); 
@@ -104,12 +124,18 @@ router.post('/internal/revisions', ensureLoggedIn('/users/login'),  function(req
 // async function createRevision(revisionText,blockId,revisionDate,revisionUser) {
 async function createRevision(revisionText,blockId,revisionUser) {
  
+  // FIXME
+  //let CURRENT = 0;
   let result;
   try {
-    const insertRevisionStmt = `INSERT INTO REVISIONS (TEXT,BLOCKID,CREATED,USERID) VALUES (?,?,DATETIME('now'),?)`;
-    result = await dbh.query(insertRevisionStmt, [revisionText,blockId,revisionUser]);
+    //const insertRevisionStmt = `INSERT INTO REVISIONS (TEXT,BLOCKID,CREATED,USERID) VALUES (?,?,DATETIME('now'),?)`;
+    const insertRevisionStmt = `INSERT INTO REVISIONS (TEXT,BLOCKID,CREATED,USERID,STATUS) VALUES (?,?,DATETIME('now'),?,?)`;
+    result = await dbh.query(insertRevisionStmt, [revisionText,blockId,revisionUser,CURRENT]);
     //const insertRevisionStmt = `INSERT INTO REVISIONS (TEXT,BLOCKID,CREATED,USERID) VALUES (?,?,?,?)`;
     //result = await dbh.query(insertRevisionStmt, [revisionText,blockId,revisionDate,revisionUser]);
+
+    const archiveOldRevisionStmt = `UPDATE REVISIONS SET STATUS = 1 WHERE BLOCKID = ? AND REVISIONID = ?`;
+ 
   } catch (e) { 
     console.error(e.message); 
   }   

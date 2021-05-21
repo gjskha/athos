@@ -62,9 +62,9 @@ router.use(function (req, res, next) {
      userID: null, // ??
   };
 
-  if (!req.user) {
+  /*if (!req.user) {
     req.user = null;
-  } 
+  } */
 
   req.categoryData.levels = req.baseUrl.split('/');
 
@@ -177,6 +177,11 @@ router.get('/', function(req, res, next) {
       req.categoryData.revisionId = row.REVISIONID;
       req.categoryData.state = FOUND;
  
+      let username = undefined;
+
+      if (req.user)
+        username = req.user.USERNAME;
+
       // send back a 200 response and the json object
       //res
       //  .status(200)
@@ -199,6 +204,7 @@ router.get('/', function(req, res, next) {
         //state : "state",
         state : req.categoryData.state,
         user : req.user,
+        username : username,
         //levels : req.categoryData.levels,
         levels : createBreadCrumbs(req.categoryData.levels),
       });
