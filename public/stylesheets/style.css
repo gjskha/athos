@@ -7,6 +7,7 @@ a {
   color: #00B7FF;
 }
 
+/* pill nav adapted from https://www.w3schools.com */
 .pill_nav a {
   display: inline-block;
   color: black;
@@ -15,6 +16,7 @@ a {
   text-decoration: none;
   font-size: 17px;
   border-radius: 5px;
+  margin-bottom: 15px;
 }
 
 .pill_nav a:hover {
@@ -23,7 +25,8 @@ a {
 }
 
 .pill_nav a.active {
-  background-color: dodgerblue;
+  /* background-color: dodgerblue; */
+  background-color: #00B7FF;
   color: white;
 }
 
@@ -61,7 +64,8 @@ a {
 
 /* Style the active/current link*/
 .header a.active {
-  background-color: dodgerblue;
+  /* background-color: dodgerblue; */
+  background-color: #00B7FF;
   color: white;
 }
 
@@ -81,4 +85,70 @@ a {
     float: none;
   }
 }
-/******************/
+
+/* styles for the diff UI */
+.addition {
+  /* 85% */
+  background-color: #b3ffb3;
+}
+
+.subtraction {
+  /* 85% */
+  background-color: #ffb3b3;
+}
+
+/* style for flash message */
+.success {
+  /* yellowish 50/85 */	
+  border: 1px solid #ffff00;
+  background-color: #ffffb3;
+  border-radius: 4px;
+}
+
+.alert {
+  /* reddish 50/85 */	
+  border: 1px solid #ff0000;
+  background-color: #ffb3b3;
+  border-radius: 4px;
+}
+
+/* https://www.w3schools.com/howto/howto_css_modals.asp */
+/* The Modal (background) */
+.modal {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Sit on top */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+
+/* Modal Content/Box */
+.modal-content {
+  background-color: #fefefe;
+  margin: 15% auto; /* 15% from the top and centered */
+  padding: 20px;
+  border: 1px solid #888;
+  width: 80%; /* Could be more or less, depending on screen size */
+  border-radius: 4px;
+}
+
+/* The Close Button */
+.close {
+  color: #aaa;
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+}
+
+.close:hover,
+.close:focus {
+  color: black;
+  text-decoration: none;
+  cursor: pointer;
+}
+/*********************************************

@@ -12,11 +12,18 @@ var ensureLoggedIn = require('connect-ensure-login').ensureLoggedIn;
 var diff = require('simplediff');
 
 const dbfile = path.join(__dirname, '../db', 'database.db');
-const dbh = new sqlite3.Database(dbfile, (err) => {
+
+/*const dbh = new sqlite3.Database(dbfile, (err) => {
   if (err) {
     return console.error(err.message);
   }
 });
+*/
+
+var TransactionDatabase = require("sqlite3-transactions").TransactionDatabase;
+var dbh = new TransactionDatabase(
+    new sqlite3.Database(dbfile, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE)
+);
 
 // FIXME
 /* global flags for requested Categories */
@@ -124,18 +131,47 @@ router.post('/internal/revisions', ensureLoggedIn('/users/login'),  function(req
 // async function createRevision(revisionText,blockId,revisionDate,revisionUser) {
 async function createRevision(revisionText,blockId,revisionUser) {
  
-  // FIXME
-  //let CURRENT = 0;
   let result;
   try {
-    //const insertRevisionStmt = `INSERT INTO REVISIONS (TEXT,BLOCKID,CREATED,USERID) VALUES (?,?,DATETIME('now'),?)`;
-    const insertRevisionStmt = `INSERT INTO REVISIONS (TEXT,BLOCKID,CREATED,USERID,STATUS) VALUES (?,?,DATETIME('now'),?,?)`;
-    result = await dbh.query(insertRevisionStmt, [revisionText,blockId,revisionUser,CURRENT]);
-    //const insertRevisionStmt = `INSERT INTO REVISIONS (TEXT,BLOCKID,CREATED,USERID) VALUES (?,?,?,?)`;
-    //result = await dbh.query(insertRevisionStmt, [revisionText,blockId,revisionDate,revisionUser]);
 
-    const archiveOldRevisionStmt = `UPDATE REVISIONS SET STATUS = 1 WHERE BLOCKID = ? AND REVISIONID = ?`;
+    const insertRevisionStmt = `INSERT INTO REVISIONS (TEXT,BLOCKID,CREATED,USERID,STATUS) VALUES (?,?,DATETIME('now'),?,?)`;
+    // result = await dbh.query(insertRevisionStmt, [revisionText,blockId,revisionUser,CURRENT]);
+    
+    const archiveOldRevisionStmt = `UPDATE REVISIONS SET STATUS = 1 WHERE BLOCKID = ?`;
  
+     dbh.beginTransaction(function(err, transaction) {
+       /* update the old revisions to archived status */
+       dbh.run(archiveOldRevisionStmt, [blockId], (err) => {
+         if (err) {
+            console.error(err.message);
+            transaction.rollback(function(err) {
+              if (err) return console.log(`Error: ${err.message}`);
+	    });
+          }
+       }); 
+ 
+       /* insert the new revision */ 
+       dbh.run(insertRevisionStmt, [revisionText,blockId,revisionUser,CURRENT], (err) => {
+          if (err) {
+            console.error(err.message);
+            transaction.rollback(function(err) {
+              if (err) return console.log(`Error: ${err.message}`);
+	    });
+          }
+        
+          console.log(`A row has been inserted into revisions with rowid ${this.lastID}`);
+       });
+
+       /* commit the transaction */ 
+       transaction.commit(function(err) {
+          if (err) {
+            return console.log(`Error: ${err.message}`);
+          }
+
+          console.log(`transaction for editing ${blockId} succeeded`);
+       });
+
+     });
   } catch (e) { 
     console.error(e.message); 
   }   
@@ -190,13 +226,9 @@ async function compareRevisions(left,right) {
     console.error(e.message); 
   }
  
-  //if (result.rows.length === 2) {
   if (result.length === 2) {
 
     diffText = {
-      //"left" : result.rows[0],
-      //"right" : result.rows[1],
-      //"diff" : diff.diff(result.rows[0].TEXT,result.rows[1].TEXT),
       "left" : result[0],
       "right" : result[1],
       "diff" : diff.diff(result[0].TEXT,result[1].TEXT),
@@ -382,7 +414,6 @@ async function getRevision(blockId,revisionId) {
 }
 
 // Add a category to block
-// patch /block/:block_id/category/:category_id
 router.patch('/internal/blocks/:block_id/categories/:category_id', ensureLoggedIn('/users/login'), async function(req, res, next) {
 
   const blockId = req.params.block_id;
@@ -497,6 +528,13 @@ async function getBlockCategories(blockId) {
 // (for all categories pointing to a block)
 
 // get /search
-function performSearch() {}
+router.get('/internal/search/:term', async function(req, res, next) {
+
+  res.status("200").send("placeholder");
+
+});
+
+function performSearch(term) {
+}
 
 module.exports = router;

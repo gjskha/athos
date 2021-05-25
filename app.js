@@ -21,20 +21,65 @@ var db = require('./db');
 app.use(passport.initialize());
 app.use(passport.session());
 
+// test
+app.set('date',Date());
+
 // Configure the local strategy for use by Passport.
 //
 // The local strategy requires a `verify` function which receives the credentials
 // (`username` and `password`) submitted by the user.  The function must verify
 // that the password is correct and then invoke `cb` with a user object, which
 // will be set at `req.user` in route handlers after authentication.
+
+/*
+findById = function(id, cb) {
+  //process.nextTick(function() {
+    var q = `SELECT * 
+	     FROM USERS
+	    WHERE USERID = ?`;
+
+   dbh.get(q, [id], (err, row) => {
+  if (err) {
+    return console.error(err.message);
+  }
+  //return row
+  console.log(row.USERID+" + "+id);
+  if (row.USERID === id) {
+     return cb(null, row);
+  }
+
+  });
+//});
+}
+
+let findByUsername = function(username,cb) {
+  //process.nextTick(function() {
+   var q = `SELECT * 
+	     FROM USERS
+	    WHERE USERNAME = ?`;
+  dbh.get(q, [username], (err, row) => {
+  if (err) {
+    return console.error(err.message);
+  }
+  console.log(row.USERNAME+" + "+username);
+  if (row.USERNAME === username) {
+     return cb(null, row);
+  }
+   return cb(null, null);
+   });
+  //});
+}
+*/
+
 passport.use(new Strategy(
   function(username, password, cb) {
     db.users.findByUsername(username, function(err, user) {
+    //findByUsername(username, function(err, user) {
       if (err) { return cb(err); }
       if (!user) { return cb(null, false); }
-      //if (user.password != password) { return cb(null, false); }
       console.log(user);
-      if (user.passwordhash !== password) { return cb(null, false); }
+      //if (user.passwordhash !== password) { return cb(null, false); }
+      if (user.PASSWORD !== password) { return cb(null, false); }
       return cb(null, user);
     });
   }));
@@ -52,28 +97,13 @@ passport.serializeUser(function(user, cb) {
 });
 
 passport.deserializeUser(function(id, cb) {
-
   db.users.findById(id, function (err, user) {
+  //findById(id, function (err, user) {
     if (err) { return cb(err); }
-
-
     cb(null, user);
-
   });
 });
 /////////////////////
-
-
-/*
-const sqlite3 = require('sqlite3').verbose();
-
-let dbh = new sqlite3.Database('./db/database.db', (err) => {
-  if (err) {
-    return console.error(err.message);
-  }
-  console.log('Connected to the in-memory SQlite database.');
-});
-*/
 
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));

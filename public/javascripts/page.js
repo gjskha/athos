@@ -42,13 +42,15 @@ document.addEventListener('DOMContentLoaded', function() {
       swapChildNodes(form);
   
       submitButton.addEventListener("click", function(){
-        //alert("edited");
         let edits = textArea.value;
-        alert(edits); 
         axios.post(hosturl+'/internal/revisions','block_id='+blockid+'&revision_text='+edits).then((response) => {
-
-           console.log(response.status);
-           console.log(response.config);
+           let resultText = (response.status === 201) ? 'Successful edit!' : 'Something went wrong.'; 
+           let resultDiv = document.createElement("DIV");
+           //resultDiv.className = "alert";
+           resultDiv.className = "success";
+           resultDiv.appendChild(document.createTextNode(resultText));
+           form.appendChild(resultDiv);		
+	   setTimeout("location.reload(true);", 1000);	
         });
 
       });
@@ -62,6 +64,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     makeActive("history");
 
+    /* A FIFO queue with a cap of 2 */ 	  
+    let diffQueue = [];
+  
     axios.get(hosturl+'/internal/blocks/'+blockid+'/revisions').then((response) => {
     const resultLength = response.data.result.length; 
 
@@ -90,8 +95,6 @@ document.addEventListener('DOMContentLoaded', function() {
     th.appendChild(rDiff);
 
     table.appendChild(th);
-
-    let rev1, rev2;
 
     // create a row for every revision
     for (let i = 0; i < resultLength; i++) {
@@ -122,32 +125,25 @@ document.addEventListener('DOMContentLoaded', function() {
       checkBox.id = "cb" + revisionId;
       checkBox.type = "checkbox";
       checkBoxTr.appendChild(checkBox);
-      let label = document.createElement('label')
+      let label = document.createElement('LABEL')
       label.htmlFor = checkBox;
 
       checkBox.addEventListener("change", function() {
-        alert(checkBox.id);
-
-        // check state first and then
-
-        if (checkBox.checked) {  
-          if (rev1 === undefined && rev2 === undefined) {
-            rev1 = checkBox.id;      
-          } else if (rev1 !== undefined && rev2 === undefined) {
-            rev2 = checkBox.id;      
-          } else if (rev1 === undefined && rev2 !== undefined) {
-            rev1 = checkBox.id;      
-          } else if (rev1 !== undefined && rev2 !== undefined) {
-            // uncheck existing rev1   
-            rev1 = checkBox.id;   
-          }
-
-          alert("rev1 is "+rev1+" rev2 is "+rev2);
-       } else {
-
-          alert("rev1 is "+rev1+" rev2 is "+rev2);
-       }
-
+	if (checkBox.checked) {      
+          if (diffQueue.length === 2) {
+	    document.getElementById(diffQueue[0]).checked = false;	  
+            diffQueue[0] = diffQueue[1];
+	    diffQueue[1] = checkBox.id; 	
+	  } else {
+            diffQueue.push(checkBox.id);
+	  }
+        } else { // the checkBox was unchecked
+          if (diffQueue[0] === checkBox.id) {
+            diffQueue[0] = diffQueue[1];
+	  }
+	  // update tail in either case	
+          diffQueue[1] = undefined;		  
+	}
       });
 
       row.appendChild(checkBoxTr);
@@ -162,13 +158,61 @@ document.addEventListener('DOMContentLoaded', function() {
     swapChildNodes(table,diffButton);
 
     diffButton.addEventListener("click", function(){
-      alert("diff for "+rev1+" and "+rev2);  
       
+      const diffUrl = hosturl + 
+        '/internal/revisions/' + 
+        diffQueue[0].substr(2) + 
+        '/' + 
+        diffQueue[1].substr(2);
+
+      axios.get(diffUrl).then((response) => {
+
+	// the remote data      
+	const diff = response.data.result.diff;
+	const leftDate = response.data.result.left.CREATED; 
+	const rightDate = response.data.result.right.CREATED;
+	const leftRevId = response.data.result.left.REVISIONID; 
+	const rightRevId = response.data.result.right.REVISIONID;
+
+	// construct the output      
+	let diffOutput = document.createElement("DIV");
+	let diffHeadText = document.createTextNode(
+	 "Comparing revision " +
+         leftRevId +
+          " from " + leftDate + " with " +
+         rightRevId +
+          " from " + rightDate
+	);
+	
+	let diffHead = document.createElement("H4");
+	diffHead.appendChild(diffHeadText);
+	diffOutput.appendChild(diffHead);
+
+	for (let i = 0; i < diff.length; i++) {
+          console.log(diff[i][0]);
+	  let span = document.createElement("SPAN");
+
+	  if (diff[i][0] === '+') {
+            span.className = "addition";
+	  } else if (diff[i][0] === '-') {
+            span.className = "subtraction";
+	  } 
+   
+	  // the actual text	
+          span.appendChild(document.createTextNode(diff[i][1]));
+	  diffOutput.appendChild(span);	
+        }
+        // TBD do a modal
+	// table.appendChild(diffOutput); 
+	makeModal(diffOutput);
+
+      });
+
     });
 
 
     }, (error) => {
-      // alert(error);
+      alert(error);
     });
 
   });
@@ -179,11 +223,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
     makeActive("categories");
 
+    // create an "add category" button and append it to the list of categories	  
+    let categoryList = document.createElement("UL");
     axios.get(hosturl+'/internal/blocks/'+blockid+'/categories').then((response) => {
 
       const resultLength = response.data.result.length; 
 
-      let categoryList = document.createElement("UL");
 
       for (let i = 0; i < resultLength; i++) {
 
@@ -192,10 +237,52 @@ document.addEventListener('DOMContentLoaded', function() {
         categoryItem.appendChild(categoryText);
         categoryList.appendChild(categoryItem);
       }
-     
-      swapChildNodes(categoryList);
+      //swapChildNodes(categoryList);
  
     });
+    let addCatBtn = document.createElement("BUTTON");
+    addCatBtn.appendChild(document.createTextNode("Add Category"));
+    let addCatBtnLi = document.createElement("LI");
+    addCatBtnLi.appendChild(addCatBtn);	 
+    categoryList.appendChild(addCatBtnLi);
+
+    // add category button functionality
+	 
+    addCatBtn.addEventListener("click", function(){
+      let form = document.createElement("FORM");
+      form.id = "addCategory";
+
+      let textBox = document.createElement("INPUT");
+      textBox.placeholder="Enter a category";
+      textBox.type = "Text"	    
+      textBox.id = "textCategory";
+      textBox.setAttribute('width', '70%');	    
+      textBox.setAttribute('size', '70');	    
+      form.appendChild(textBox);
+
+      /* submit button */
+      let submitButton = document.createElement("BUTTON");
+      submitButton.id = "submitText";
+      let submitLabel = document.createTextNode("Submit");
+      submitButton.appendChild(submitLabel);
+      form.appendChild(document.createElement("BR"));
+      form.appendChild(submitButton);
+
+      submitButton.addEventListener("click", function() {
+	alert(textBox.value);
+	// check if category exists, if it doesn't, fail     
+	/* const addCatUrl = hosturl + "/internal/blocks/" + 
+		      blockid + "/categories/" + categoryid;
+	
+        axios.patch(addCaturl).then((response) => {
+	});*/
+
+      });
+
+      makeModal(form);	    
+    });
+
+    swapChildNodes(categoryList);
 
   });
 
@@ -228,4 +315,41 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  function makeModal(element) {
+    // the background 
+    console.log(element); 
+    let modalBg = document.createElement("DIV");
+    modalBg.className = "modal";
+    let closeBtn = document.createElement("SPAN");
+    //closeBtn.appendChild(document.createTextNode("&times;"));	  
+    closeBtn.innerHTML = "&times;";	  
+    closeBtn.className = "close";
+    closeBtn.addEventListener("click", function(){
+      modalBg.style.display = "none";
+
+    });
+    // attach closeBtn to modal-content	  
+    let modal = document.createElement("DIV");
+    	  
+    modal.className = "modal-content";
+    modal.appendChild(closeBtn);	  
+    modal.appendChild(element);	  
+    while (modalBg.firstChild) {
+      modalBg.removeChild(modalBg.firstChild);
+    }
+    modalBg.appendChild(modal);
+    modalBg.style.display = "block";
+    // attach modalBg to body	  
+    
+    let body = document.getElementsByTagName("BODY")[0];
+    	    
+     body.appendChild(modalBg);	 
+  }
+/*
+  window.onclick = function(event) {
+    const modalBg = document.getElementById("modal");
+    if (event.target === modalBg) {
+      modalBg.style.display = "none";
+    }
+  } */
 });

@@ -3,7 +3,6 @@ var router = express.Router();
 var sqlite3 = require('sqlite3').verbose();
 var path = require('path');
 var passport = require('passport');
-
 var TransactionDatabase = require("sqlite3-transactions").TransactionDatabase;
 var ensureLoggedIn = require('connect-ensure-login').ensureLoggedIn;
 //var diff = require('simplediff');
@@ -46,7 +45,6 @@ dbh.query = function (sql, params) {
   });
 };
 /////////////////////////////////////////////////////////////
-
 
 // invoked for any requests passed to this router
 router.use(function (req, res, next) {
@@ -134,8 +132,7 @@ function createBreadCrumbs(levels) {
 /* The root level category gets special treatment in index.routes */
 router.get('/', function(req, res, next) {
 
-  console.log("in router get CATEGORYID is ");
-  console.log(req.categoryData.categoryId);
+  console.log(`in router get CATEGORYID is ${req.categoryData.categoryId}`);
 
   const pageDataQuery = 
   `SELECT C.CATEGORYTEXT, 
@@ -308,12 +305,14 @@ function createCategory(req,res) {
         dbh.run(`INSERT INTO CATEGORIES (CATEGORYTEXT,PARENT,CREATED) VALUES (?,?,DATETIME('now'))`, [candidateCategory, parentId], (err) => {
           if (err) {
             console.error(err.message);
-          }
-          //console.log(`A row has been inserted into categories with rowid ${this.lastID}`);
-         transaction.rollback(function(err) {
+            transaction.rollback(function(err) {
               if (err) return console.log(`Error: ${err.message}`);
-	 });
-      });
+	    });
+
+          } else {
+            console.log(`A row has been inserted into categories with rowid ${this.lastID}`);
+          }
+        });
 
 /*
         const findLastCategory = `SELECT CATEGORYTEXT, CATEGORYID FROM CATEGORIES WHERE CATEGORYID = last_insert_rowid()`;
@@ -384,7 +383,9 @@ function createCategory(req,res) {
         });
 
         transaction.commit(function(err) {
-          if (err) return console.log(`Error: ${err.message}`);
+          if (err) 
+            return console.log(`Error: ${err.message}`);
+
           console.log(`creation of new Category ${req.categoryData.categoryText}`);
 	});
      });
