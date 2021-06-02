@@ -1,31 +1,13 @@
-/* Specialty routes for front page, API, etc */
-// Alternative, Header : compare, etc 
-// if header x: then y
+//////////////////////////////////////////////////////////////////////////////
+// This file contains the application's routes.
+// Each section contains the Express routes followed by the function(s) that
+// run the SQL queries and associated tasks for those routes
+//////////////////////////////////////////////////////////////////////////////
 
-var express = require('express');
-var router = express.Router();
-var sqlite3 = require('sqlite3').verbose();
-var path = require('path');
-
-var passport = require('passport');
 var ensureLoggedIn = require('connect-ensure-login').ensureLoggedIn;
 var diff = require('simplediff');
+var bbfy = require('bbfy');
 
-const dbfile = path.join(__dirname, '../db', 'database.db');
-
-/*const dbh = new sqlite3.Database(dbfile, (err) => {
-  if (err) {
-    return console.error(err.message);
-  }
-});
-*/
-
-var TransactionDatabase = require("sqlite3-transactions").TransactionDatabase;
-var dbh = new TransactionDatabase(
-    new sqlite3.Database(dbfile, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE)
-);
-
-// FIXME
 /* global flags for requested Categories */
 const NOTFOUND = 0;
 const FOUND = 1;
@@ -36,398 +18,568 @@ const DELETED = 3;
 const CURRENT = 0;
 const ARCHIVE = 1;
 
-// meant for straight sqlite
-// https://dev.to/michelc/use-sqlite3-in-async-await-mode-57ke
-dbh.query = function (sql, params) {
-  var that = this;
-  return new Promise(function (resolve, reject) {
-    that.all(sql, params, function (error, rows) {
-      if (error)
-        reject(error);
-      else
-        //resolve({ rows: rows });
-        resolve(rows);
+module.exports = function(app, passport, connection) {
+
+  /* code values used in the database tables */
+  const conf = app.get('conf');
+
+  ///////////////////////////////////////////////////////////////////////////
+  // logging function called on every request
+  ///////////////////////////////////////////////////////////////////////////
+  app.use(async function (req, res, next) {
+
+    console.log("==========================================================");
+    let time = Date();
+    console.log(`${time} : ${req.method} request for ${req.originalUrl}`);	
+
+    /* collecting request-specific variables */
+    req.categoryData = {
+      state : null,
+    };
+
+    /* used for traversing category levels */
+    req.categoryData.levels = req.path.split('/');
+    req.categoryData.levels.shift();
+    console.log(`levels are ${req.categoryData.levels}`);
+
+    /* user info */
+    if (req.user) {
+      console.log(`login user is ${req.user.username}`);
+      req.logged_in_user = req.user.username; 
+    } else {
+      console.log(`no login user for ${req.originalUrl}`);
+      req.logged_in_user = false;
+    }
+  	
+    next();
+ 
+  });
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Home page with 2nd level categories and information
+  ///////////////////////////////////////////////////////////////////////////
+  app.get('/', async function(req, res) {
+
+    console.log(`rendering index template at home page.`);
+
+    // the home page has an id of 1 	
+    let rootChildren = await getChildCategories(1);
+
+    res.render('index', {
+      'title' : 'Welcome To Gwiki', 
+      //'user' : req.user, 
+      'logged_in_user' : req.logged_in_user, 
+      'kids' : rootChildren,
     });
   });
-};
 
-// invoked for any requests passed to this router
-router.use(function (req, res, next) {
-  next();
-})
+  ///////////////////////////////////////////////////////////////////////////
+  // Login and registration routes
+  // 1) GET login form route
+  // 2) POST login data to passport
+  // 3) GET registration form route
+  // 4) POST registration data to passport
+  // 5) profile (TBD)
+  // 6) GET logout route
+  //  
+  // login logic uses code/algorithms sourced from from:
+  // https://github.com/manjeshpv/node-express-passport-mysql
+  ///////////////////////////////////////////////////////////////////////////
 
-/* GET home page. */
-router.get('/', function(req, res, next) {
-  
-  var q = `SELECT * 
-	     FROM REVISIONS 
-	    WHERE BLOCKID = ?
-              AND STATUS = 0
-	 ORDER BY CREATED DESC`;
-  const blockid = 1;
-
-dbh.get(q, [blockid], (err, row) => {
-  if (err) {
-    return console.error(err.message);
-  }
-  return row
-    ? console.log("REVISION_ID "+row.REVISIONID+" TEXT "+row.TEXT+" USERID "+row.USERID)
-    : console.log(`error retrieving document`);
-
-});
-
-  res.render('index', { 
-    title: 'Welcome to Gwiki' 
-
+  /* login form */
+  app.get('/login', function(req, res) {
+    console.log(`rendering login template.`);
+    res.render('login', {
+      logged_in_user : req.logged_in_user, 
+      message: req.flash('loginMessage'), 
+    });
   });
 
-});
+  /* process the login form */
+  app.post('/login', 
+    passport.authenticate('local-login', {
+      //successRedirect : '/profile', 
+      successRedirect : '/', 
+      failureRedirect : '/login', 
+      failureFlash : true // allow flash messages
+    }),
 
-/* create Revision */
-//router.post('/internal/revisions', ensureLoggedIn('/users/login'), async function(req, res, next) {
-router.post('/internal/revisions', ensureLoggedIn('/users/login'),  function(req, res, next) {
-//router.post('/internal/revisions', function(req, res, next) {
-
-   const revisionText = req.body.revision_text;
-   const blockId = req.body.block_id;
-   console.log("revision_text is "+revisionText);
-   //const revisionDate = new Date();
-   // https://stackoverflow.com/questions/22252226/passport-local-strategy-and-curl
-   //const revisionUser = req.user.USERID;
-   let revisionUser;
-   
-   if (req.user) {
-     revisionUser = req.user.USERID;
-     console.log("logged in is "+revisionUser); 
-   } else {
-     console.log("No user logged in"); 
-   }
-
-   //if (revisionText && blockId && revisionDate && revisionUser) {
-   if (revisionText && blockId && revisionUser) {
-     // const result = createRevision(revisionText,blockId,revisionDate,revisionUser); 
-     //const result = await createRevision(revisionText,blockId,revisionUser); 
-     const result = createRevision(revisionText,blockId,revisionUser); 
-
-     if (typeof(result) !== "undefined") {
-       res
-         .status("201")
-         .set('Content-Type', 'text/plain')
-         .send({ 
-            "result" : result,
-         }) 
-         .end();
-
-     } else {
-        res
-          .status("403")
-          .set('Content-Type', 'text/plain')
-          .send({ "Error" : "missing parameter" }) 
-          .end();
-     }
-   }
-});
-
-// async function createRevision(revisionText,blockId,revisionDate,revisionUser) {
-async function createRevision(revisionText,blockId,revisionUser) {
- 
-  let result;
-  try {
-
-    const insertRevisionStmt = `INSERT INTO REVISIONS (TEXT,BLOCKID,CREATED,USERID,STATUS) VALUES (?,?,DATETIME('now'),?,?)`;
-    // result = await dbh.query(insertRevisionStmt, [revisionText,blockId,revisionUser,CURRENT]);
-    
-    const archiveOldRevisionStmt = `UPDATE REVISIONS SET STATUS = 1 WHERE BLOCKID = ?`;
- 
-     dbh.beginTransaction(function(err, transaction) {
-       /* update the old revisions to archived status */
-       dbh.run(archiveOldRevisionStmt, [blockId], (err) => {
-         if (err) {
-            console.error(err.message);
-            transaction.rollback(function(err) {
-              if (err) return console.log(`Error: ${err.message}`);
-	    });
-          }
-       }); 
- 
-       /* insert the new revision */ 
-       dbh.run(insertRevisionStmt, [revisionText,blockId,revisionUser,CURRENT], (err) => {
-          if (err) {
-            console.error(err.message);
-            transaction.rollback(function(err) {
-              if (err) return console.log(`Error: ${err.message}`);
-	    });
-          }
-        
-          console.log(`A row has been inserted into revisions with rowid ${this.lastID}`);
-       });
-
-       /* commit the transaction */ 
-       transaction.commit(function(err) {
-          if (err) {
-            return console.log(`Error: ${err.message}`);
-          }
-
-          console.log(`transaction for editing ${blockId} succeeded`);
-       });
-
-     });
-  } catch (e) { 
-    console.error(e.message); 
-  }   
-  return result;
-}
-
-/* Compare revisions */
-router.get('/internal/revisions/:left/:right', async function(req, res, next) {
-
-   const left = req.params.left;
-   const right = req.params.right;
-   
-   if (left && right) {
-
-     const result = await compareRevisions(left,right); 
-
-     if (typeof(result) !== "undefined") {
-       res
-         .status("200")
-         .set('Content-Type', 'text/plain')
-         .send({ 
-            "result" : result,
-         }) 
-         .end();
-
-     } else {
-        res
-          .status("400")
-          .set('Content-Type', 'text/plain')
-          .send({ "Error" : "comparison unavailable" }) 
-          .end();
-     }
-   } else {
-     res
-       .status("403")
-       .set('Content-Type', 'text/plain')
-       .send({ "Error" : "Missing parameter" }) 
-       .end();
-   }
-});
-
-async function compareRevisions(left,right) {
-
-  let result;
-  let diffText;
-
-  try {
-    const revisionCompareQuery = `select REVISIONID,TEXT,CREATED from revisions where revisionid = ? or revisionid = ?`;
-    result = await dbh.query(revisionCompareQuery, [left,right]);
-
-  } catch (e) { 
-    console.error(e.message); 
-  }
- 
-  if (result.length === 2) {
-
-    diffText = {
-      "left" : result[0],
-      "right" : result[1],
-      "diff" : diff.diff(result[0].TEXT,result[1].TEXT),
+    function(req, res) {
+      if (req.body.remember) {
+        req.session.cookie.maxAge = 1000 * 60 * 3;
+      } else {
+        req.session.cookie.expires = false;
     }
-  } 
+    res.redirect('/');
+  });
 
-  return diffText;
-}
+  /* registration screens */
+  app.get('/register', function(req, res) {
+    res.render('register', { message: req.flash('signupMessage') });
+  });
 
-// Get categories belonging to a parent category
-router.get('/internal/categories/:category_id/children', async function(req, res, next) {
-  const categoryId = req.params.category_id;
+  // process the signup form
+  app.post('/register', 
+    passport.authenticate('local-signup', {
+      //successRedirect : '/profile', 
+      successRedirect : '/', 
+      failureRedirect : '/register', 
+      failureFlash : true // allow flash messages
+   })
+  );
+
+  //app.get('/profile', isLoggedIn, function(req, res) {
+  app.get('/profile', ensureLoggedIn('/login'), async function(req, res) {
+    // TBD: use contributions	  
+    res.render('profile', {
+      //user : req.user 
+      logged_in_user : req.logged_in_user, 
+    });
+  });
+
+  app.get('/logout', function(req, res) {
+    req.logout();
+    res.redirect('/');
+  });
+
+  /* TBD: select user's contributions for profile page */ 
+  async function getUserContributions(userId) {
+  }
+
+  /////////////////////////////////////////////////////////////////////////////////
+  // create a new Revision: 
+  // 1. internal POST route.
+  // 2. createRevision updates the database.
+  /////////////////////////////////////////////////////////////////////////////////
+  app.post('/internal/revisions', ensureLoggedIn('/login'),  function(req, res, next) {
+
+    const revisionText = req.body.revision_text;
+    const blockId = req.body.block_id;
+	
+    let revisionUser;
+    if (req.user) {
+      revisionUser = req.user.userid;
+      //console.log("login user is "+revisionUser); 
+    } else {
+      console.log("No logged in user to commit revision"); 
+    }
+
+    if (revisionText && blockId && revisionUser) {
+      const result = createRevision(revisionText,blockId,revisionUser); 
+
+      if (typeof(result) !== "undefined") {
+        res
+          .status("201")
+          .set('Content-Type', 'text/plain')
+          .send({ 
+            "result" : result,
+          }) 
+          .end();
+
+      } else {
+         res
+           .status("403")
+           .set('Content-Type', 'text/plain')
+           .send({ "Error" : "missing parameter" }) 
+           .end();
+      }
+    }
+  });
+
+/* create revision: 
+   params: 
+   revisionText : a block of text
+   blockId : a block that the revision belongs to
+   revisionUser : who wrote it
+*/
+  async function createRevision(revisionText,blockId,revisionUser) {
+   
+    let result;
+    try {
   
-  if (typeof(categoryId) !== "undefined") {
+      const insertRevisionStmt = `INSERT INTO REVISIONS (TEXT,BLOCKID,CREATED,USERID,STATUS) VALUES (?,?,DATETIME('now'),?,?)`;
+      // result = await connection.query(insertRevisionStmt, [revisionText,blockId,revisionUser,CURRENT]);
+      
+      const archiveOldRevisionStmt = `UPDATE REVISIONS SET STATUS = 1 WHERE BLOCKID = ?`;
+   
+       connection.beginTransaction(function(err, transaction) {
+         /* update the old revisions to archived status */
+         connection.run(archiveOldRevisionStmt, [blockId], (err) => {
+           if (err) {
+              console.error(err.message);
+              transaction.rollback(function(err) {
+                if (err) return console.log(`Error: ${err.message}`);
+  	    });
+            }
+         }); 
+   
+         /* insert the new revision */ 
+         connection.run(insertRevisionStmt, [revisionText,blockId,revisionUser,CURRENT], (err) => {
+            if (err) {
+              console.error(err.message);
+              transaction.rollback(function(err) {
+                if (err) return console.log(`Error: ${err.message}`);
+  	    });
+            }
+          
+            console.log(`A row has been inserted into revisions with rowid ${this.lastID}`);
+         });
   
-    const result = await getChildCategories(categoryId); 
+         /* commit the transaction */ 
+         transaction.commit(function(err) {
+            if (err) {
+              return console.log(`Error: ${err.message}`);
+            }
   
-    console.log(result);
+            console.log(`transaction for editing ${blockId} succeeded`);
+         });
   
-    if (typeof(result) !== "undefined") {
-      res
-        .status("200")
-        .set('Content-Type', 'text/plain')
-        .send({ 
-           "result" : result,
-         }) 
+       });
+    } catch (e) { 
+      console.error(e.message); 
+    }   
+    return result;
+  }
+  
+  /////////////////////////////////////////////////////////////////////////////////
+  // Comparing revisions of a block
+  // 1) GET route for diff 
+  // 2) compareRevisions function for generating diff structure 
+  /////////////////////////////////////////////////////////////////////////////////
+  app.get('/internal/revisions/:left/:right', async function(req, res, next) {
+  
+     const left = req.params.left;
+     const right = req.params.right;
+     
+     if (left && right) {
+  
+       const result = await compareRevisions(left,right); 
+  
+       if (typeof(result) !== "undefined") {
+         res
+           .status("200")
+           .set('Content-Type', 'text/plain')
+           .send({ 
+              "result" : result,
+           }) 
+           .end();
+  
+       } else {
+          res
+            .status("400")
+            .set('Content-Type', 'text/plain')
+            .send({ "Error" : "comparison unavailable" }) 
+            .end();
+       }
+     } else {
+       res
+         .status("403")
+         .set('Content-Type', 'text/plain')
+         .send({ "Error" : "Missing parameter" }) 
          .end();
+     }
+  });
+  
+  /* compareRevision
+     params: left revisionId, right revisionId
+     returns: diff structure */
+  async function compareRevisions(left,right) {
+  
+    let result;
+    let diffText;
+  
+    try {
+      const revisionCompareQuery = `select REVISIONID,TEXT,CREATED from revisions where revisionid = ? or revisionid = ?`;
+      result = await connection.query(revisionCompareQuery, [left,right]);
+  
+    } catch (e) { 
+      console.error(e.message); 
+    }
+   
+    if (result.length === 2) {
+  
+      diffText = {
+        "left" : result[0],
+        "right" : result[1],
+        "diff" : diff.diff(result[0].TEXT,result[1].TEXT),
+      }
+    } 
+  
+    return diffText;
+  }
+  
+  /////////////////////////////////////////////////////////////////////////////////
+  // Get all categories belonging to a given parent category 
+  // 1) internal GET route
+  // 2) getChildCategories() for running SQL query
+  /////////////////////////////////////////////////////////////////////////////////
+  app.get('/internal/categories/:category_id/children', async function(req, res, next) {
+    const categoryId = req.params.category_id;
+    
+    if (typeof(categoryId) !== "undefined") {
+    
+      const result = await getChildCategories(categoryId); 
+    
+      console.log(result);
+    
+      if (typeof(result) !== "undefined") {
+        res
+          .status("200")
+          .set('Content-Type', 'text/plain')
+          .send({ 
+             "result" : result,
+           }) 
+           .end();
+    
+       } else {
+          res
+            .status('400')
+            .set('Content-Type', 'text/plain')
+            .send({ 'Error' : 'resource unavailable' }) 
+            .end();
+       }
   
      } else {
-        res
-          .status("400")
-          .set('Content-Type', 'text/plain')
-          .send({ "Error" : "resource unavailable" }) 
-          .end();
+       res
+         .status("403")
+         .set('Content-Type', 'text/plain')
+         .send({ 'Error' : 'Missing parameter' }) 
+         .end();
      }
+  });
 
-   } else {
-     res
-       .status("403")
-       .set('Content-Type', 'text/plain')
-       .send({ "Error" : "Missing parameter" }) 
-       .end();
-   }
-});
-
-async function getChildCategories(parentId) {
+  /* getChildCategories
+     params: parentId
+     returns: categoryText array */
+  async function getChildCategories(parentId) {
+    let result;
+    try {
+      // can be 0 or more results
+      const getChildrenQuery = `SELECT CATEGORYTEXT FROM CATEGORIES WHERE PARENT = ?`;
+      result = await connection.query(getChildrenQuery, [parentId]);
+   
+      result.forEach((item, index, arr) => {
+        arr[index] = item.CATEGORYTEXT;
+      }); 
+    } catch (e) { 
+      console.error(e.message); 
+    }
+    return result;
+  }
   
-  let result;
+  /////////////////////////////////////////////////////////////////////////////////
+  // List Revisions 
+  // 1. GET route for listing a Block's revisions
+  // 2. listRevisions() to run SQL command for revisions
+  /////////////////////////////////////////////////////////////////////////////////
+  app.get('/internal/blocks/:block_id/revisions', async function(req, res, next) {
+  
+    const blockId = req.params.block_id;
+  
+     if (typeof(blockId) !== "undefined") {
+    
+      const result = await listRevisions(blockId); 
+    
+      console.log(result);
+    
+      if (typeof(result) !== "undefined") {
+        res
+          .status("200")
+          .set('Content-Type', 'text/plain')
+          .send({ 
+             "result" : result,
+           }) 
+           .end();
+    
+       } else {
+          res
+            .status("400")
+            .set('Content-Type', 'text/plain')
+            .send({ "Error" : "resource unavailable" }) 
+            .end();
+       }
+  
+     } else {
+       res
+         .status("403")
+         .set('Content-Type', 'text/plain')
+         .send({ "Error" : "Missing parameter" }) 
+         .end();
+     }
+  });
+  
+  /* list revisions
+     params: blockId a block Id
+     returns: array of revisionIds
+  */ 
+  async function listRevisions(blockId) {
+    let result;
+    const listRevisionsQuery = `SELECT R.REVISIONID,R.CREATED,U.username 
+                                  FROM REVISIONS R, users U
+                                 WHERE R.BLOCKID = ?
+                                   AND U.userid = R.userid
+                              ORDER BY R.CREATED DESC`;
+  
+   try {
+      result = await connection.query(listRevisionsQuery, [blockId]);
+    } catch (e) { 
+      console.error(e.message); 
+    }
+    return result;
+  }
+  
+  ///////////////////////////////////////////////////////////////////// 
+  // Get a particular revision 
+  // 1. GET internal route
+  // 2. getRevision - get the revision
+  /////////////////////////////////////////////////////////////////////
+  app.get('/internal/blocks/:block_id/revisions/:revision_id', async function(req, res, next) {
+  
+    const blockId = req.params.block_id;
+    const revisionId = req.params.revision_id;
+  
+      if ((typeof(blockId) !== 'undefined') && (typeof(revisionId) !== 'undefined')) {
+    
+      const result = await getRevision(blockId,revisionId); 
+    
+      if (typeof(result) !== 'undefined') {
+        res
+          .status('200')
+          .set('Content-Type', 'text/plain')
+          .send({ 
+             "result" : result,
+           }) 
+           .end();
+    
+       } else {
+          res
+            .status('400')
+            .set('Content-Type', 'text/plain')
+            .send({ 'Error' : 'resource unavailable' }) 
+            .end();
+       }
+  
+     } else {
+       res
+         .status('403')
+         .set('Content-Type', 'text/plain')
+         .send({ 'Error' : 'Missing parameter' }) 
+         .end();
+     }
+  });
+  
+  async function getRevision(blockId,revisionId) {
+  
+    let result;
+  
+    const getRevisionQuery = 
+      `SELECT TEXT,CREATED,USERID 
+         FROM REVISIONS 
+        WHERE BLOCKID = ?
+          AND REVISIONID = ? 
+        ORDER BY CREATED DESC`;
+  
+    try {
+      result = await connection.query(getRevisionQuery, [blockId, revisionId]);
+    } catch (e) { 
+      console.error(e.message); 
+    }
+  
+    return result;
+  
+  }
+  /////////////////////////////////////////////////////////////////////////////
+  // categories to/from blocks -- blocks can pointed at by categories 
+  // 1. POST route to add categoryText to a blockId
+  // 2. addCategoryToBlock()
+  // 3. DELETE route to remove category from block
+  // 4. removeCategoryFromBlock()
+  /////////////////////////////////////////////////////////////////////////////
+  //app.patch('/internal/blocks/:block_id/categories/:category_id', ensureLoggedIn('/login'), async function(req, res, next) {
+  //app.patch('/internal/blocks/:block_id/categories/:category_text', ensureLoggedIn('/login'), async function(req, res, next) {
+  //app.get('/internal/blocks/:block_id/categories/:category_text', ensureLoggedIn('/login'), async function(req, res, next) {
+  app.post('/internal/blocks/:block_id/categories', ensureLoggedIn('/login'), async function(req, res, next) {
+   
+    const blockId = req.params.block_id;
+    const categoryText = req.body.category_text;
+  
+    console.log(`user ${req.user.username} : modifying blockId ${blockId} with categoryText ${categoryText}`);
 
-  try {
-    // can be 0 or more results
-    const getChildrenQuery = `SELECT CATEGORYTEXT FROM CATEGORIES WHERE PARENT = ?`;
-    result = await dbh.query(getChildrenQuery, [parentId]);
+    if ((typeof(blockId) !== 'undefined') && (typeof(categoryText) !== 'undefined')) {
+    
+      const result = await addCategoryToBlock(blockId,categoryText); 
+      console.log("result is "+result);
+      //if (typeof(result) !== 'undefined') {
+      if (result !== false) {
+        res
+          .status('201')
+          .end();
+      } else {
+        res
+          .status('404')
+          //.set('Content-Type', 'text/plain')
+          //.send({ 'Error' : 'category does not exist' }) 
+          .end();
+      }
+     } else {
+       res
+         .status('403')
+         //.set('Content-Type', 'text/plain')
+         //.send({ 'Error' : 'Missing parameter' }) 
+         .end();
+     }
+  });
+
+  /* addCategoryToBlock()
+     params: blockId block id, categoryText a URL
+     returns: truthy or falsy */
+  async function addCategoryToBlock(blockId, categoryText)  {
+  
+    const catExistsQuery = `SELECT CATEGORYID FROM CATEGORIES WHERE CATEGORYTEXT = ?`;
+  
+    let catResult;
+    try {
+      catResult = await connection.query(catExistsQuery, [categoryText]);
+   
+    } catch (e) { 
+      console.error(e.message); 
+    }
+  
+    console.log(catResult.length+" is length");
+    //if (typeof(catResult) !== 'undefined') {
+    if (catResult.length === 1) {
+  
+      console.error(`${categoryText} has categoryId ${catResult[0].CATEGORYID}`);
  
-    result.forEach((item, index, arr) => {
-      arr[index] = item.CATEGORYTEXT;
-    }); 
- 
-  } catch (e) { 
-    console.error(e.message); 
+      const blockCategoryStmt = `INSERT INTO BLOCKS_CATEGORIES (BLOCKID,CATEGORYID) VALUES (?,?)`;
+  
+      let result;
+      try {
+        result = await connection.query(blockCategoryStmt, [blockId, catResult[0].CATEGORYID]);
+      } catch (e) { 
+        console.error(e.message);
+        return false;  
+      }
+    
+      return true;
+    } else {
+      return false;
+    }
   }
 
-  return result;
-}
-
-// List Revisions
-router.get('/internal/blocks/:block_id/revisions', async function(req, res, next) {
-
-  const blockId = req.params.block_id;
-
-   if (typeof(blockId) !== "undefined") {
-  
-    const result = await listRevisions(blockId); 
-  
-    console.log(result);
-  
-    if (typeof(result) !== "undefined") {
-      res
-        .status("200")
-        .set('Content-Type', 'text/plain')
-        .send({ 
-           "result" : result,
-         }) 
-         .end();
-  
-     } else {
-        res
-          .status("400")
-          .set('Content-Type', 'text/plain')
-          .send({ "Error" : "resource unavailable" }) 
-          .end();
-     }
-
-   } else {
-     res
-       .status("403")
-       .set('Content-Type', 'text/plain')
-       .send({ "Error" : "Missing parameter" }) 
-       .end();
-   }
-});
-
-async function listRevisions(blockId) {
-
-  let result;
-
-  const listRevisionsQuery = `SELECT R.REVISIONID,R.CREATED,U.USERNAME 
-                                FROM REVISIONS R, USERS U
-                               WHERE R.BLOCKID = ?
-                                 AND U.USERID = R.USERID
-                            ORDER BY R.CREATED DESC`;
-
- try {
-    result = await dbh.query(listRevisionsQuery, [blockId]);
-
-  } catch (e) { 
-    console.error(e.message); 
-  }
-
-  return result;
-
-}
-
-// get a particular revision
-router.get('/internal/blocks/:block_id/revisions/:revision_id', async function(req, res, next) {
-
-  const blockId = req.params.block_id;
-  const revisionId = req.params.revision_id;
-
-    if ((typeof(blockId) !== "undefined") && (typeof(revisionId) !== "undefined")) {
-  
-    const result = await getRevision(blockId,revisionId); 
-  
-    console.log(result);
-  
-    if (typeof(result) !== "undefined") {
-      res
-        .status("200")
-        .set('Content-Type', 'text/plain')
-        .send({ 
-           "result" : result,
-         }) 
-         .end();
-  
-     } else {
-        res
-          .status("400")
-          .set('Content-Type', 'text/plain')
-          .send({ "Error" : "resource unavailable" }) 
-          .end();
-     }
-
-   } else {
-     res
-       .status("403")
-       .set('Content-Type', 'text/plain')
-       .send({ "Error" : "Missing parameter" }) 
-       .end();
-   }
-});
-
-async function getRevision(blockId,revisionId) {
-
-  let result;
-
-  const getRevisionQuery = 
-    `SELECT TEXT,CREATED,USERID 
-       FROM REVISIONS 
-      WHERE BLOCKID = ?
-        AND REVISIONID = ? 
-      ORDER BY CREATED DESC`;
-
-  try {
-
-    result = await dbh.query(getRevisionQuery, [blockId, revisionId]);
-
-  } catch (e) { 
-    console.error(e.message); 
-  }
-
-  return result;
-
-}
-
-// Add a category to block
-router.patch('/internal/blocks/:block_id/categories/:category_id', ensureLoggedIn('/users/login'), async function(req, res, next) {
+/* multiple categories can have the same block */
+app.delete('/internal/blocks/:block_id/category/:category_id', async function(req, res, next) {
 
   const blockId = req.params.block_id;
   const categoryId = req.params.category_id;
 
-    if ((typeof(blockId) !== "undefined") && (typeof(categoryId) !== "undefined")) {
+  if ((typeof(blockId) !== "undefined") &&  (typeof(blockId) !== "undefined")) {
   
-    const result = await addCategoryToBlock(blockId,categoryId); 
+    const result = await removeCategoryFromBlock(blockId,categoryId);
   
-    // console.log(result);
-  
-    if (typeof(result) !== "undefined") {
+    if (result) {
       res
-        .status("201")
+        .status("204")
         .end();
   
      } else {
@@ -448,36 +600,30 @@ router.patch('/internal/blocks/:block_id/categories/:category_id', ensureLoggedI
 
 });
 
-async function addCategoryToBlock(blockId, categoryId)  {
+async function removeCategoryFromBlock(blockId,categoryId) {
 
-  const blockCategoryStmt = `INSERT INTO BLOCKS_CATEGORIES (BLOCKID,CATEGORYID) VALUES (?,?)`;
+  console.log(`removing category ${categoryId} from ${blockId}`);
+  const deleteBlockCatRec =
+    `delete from blocks_categories 
+      where blockid = ? 
+        and categoryid = ?`;
 
-  let result;
-  try {
-    result = await dbh.query(blockCategoryStmt, [blockId, categoryId]);
 
-  } catch (e) { 
-    console.error(e.message); 
-  }
 
-  return result;
-
+  return true;
 }
 
-// multiple categories can have one block
-
-// delete /block/:block_id/category/:category_id
-function removeCategoryFromBlock() {}
-
-// get /block/:block_id/categories 
-router.get('/internal/blocks/:block_id/categories', async function(req, res, next) {
+/////////////////////////////////////////////////////////////////////////////////
+// Get the categories connected to a specific block of content 
+// 1. internal GET route
+// 2. getBlockCategories - perform the SQL query
+/////////////////////////////////////////////////////////////////////////////////
+app.get('/internal/blocks/:block_id/categories', async function(req, res, next) {
   const blockId = req.params.block_id;
 
-    if (typeof(blockId) !== "undefined") {
+  if (typeof(blockId) !== "undefined") {
   
     const result = await getBlockCategories(blockId); 
-  
-    console.log(result);
   
     if (typeof(result) !== "undefined") {
       res
@@ -507,16 +653,16 @@ async function getBlockCategories(blockId) {
 
   const blockCategoriesQuery = 
    `SELECT C.CATEGORYTEXT 
-   FROM BLOCKS B 
-   INNER JOIN BLOCKS_CATEGORIES X 
-   ON B.BLOCKID = X.BLOCKID 
-   INNER JOIN CATEGORIES C 
-   ON C.CATEGORYID = X.CATEGORYID 
-   WHERE B.BLOCKID = ?`;
+      FROM BLOCKS B 
+     INNER JOIN BLOCKS_CATEGORIES X 
+        ON B.BLOCKID = X.BLOCKID 
+     INNER JOIN CATEGORIES C 
+        ON C.CATEGORYID = X.CATEGORYID 
+     WHERE B.BLOCKID = ?`;
 
   let result;
   try {
-    result = await dbh.query(blockCategoriesQuery, [blockId]);
+    result = await connection.query(blockCategoriesQuery, [blockId]);
 
   } catch (e) { 
     console.error(e.message); 
@@ -524,17 +670,309 @@ async function getBlockCategories(blockId) {
 
   return result;
 
-} // getCategories {};
-// (for all categories pointing to a block)
+} 
 
-// get /search
-router.get('/internal/search/:term', async function(req, res, next) {
-
-  res.status("200").send("placeholder");
-
+/////////////////////////////////////////////////////////////////////////////////
+// Search functionality
+// 1. get route - get the search page
+// 2. post route - process the input
+// 3. performSearch - run the sql query
+/////////////////////////////////////////////////////////////////////////////////
+app.get('/search/', function(req, res, next) {
+  console.log(req.user);
+  res.render('search', {
+    'logged_in_user' : req.logged_in_user,
+  });
 });
 
-function performSearch(term) {
+app.post('/search', async function(req, res, next) {
+  const term = req.body.term;
+
+  if (typeof(term) !== "undefined") {
+  
+    const results = await performSearch(term);
+  
+    if (typeof(results) !== "undefined") {
+      res.render('search', {
+        'logged_in_user' : req.logged_in_user,
+        'term' : term,
+        'results' : results,
+      });
+
+     } else {
+        res
+          .status("400")
+          .set('Content-Type', 'text/plain')
+          .send({ "Error" : "resource unavailable" }) 
+          .end();
+     }
+
+   } else {
+     res
+       .status("403")
+       .set('Content-Type', 'text/plain')
+       .send({ "Error" : "Missing parameter" }) 
+       .end();
+   }
+});
+
+async function performSearch(term) {
+  const searchQuery = 
+    `SELECT C.CATEGORYTEXT FROM CATEGORIES C 
+      INNER JOIN BLOCKS_CATEGORIES X ON C.CATEGORYID = X.CATEGORYID 
+      INNER JOIN BLOCKS B ON X.BLOCKID = B.BLOCKID 
+      INNER JOIN REVISIONS R ON R.BLOCKID = B.BLOCKID 
+      WHERE R.TEXT LIKE '%'||?||'%' AND R.STATUS = ?`;
+
+  console.log("Searching for "+term+" with status = "+conf.CURRENT);
+
+  let result;
+  try {
+    result = await connection.query(searchQuery, [term, conf.CURRENT]);
+  } catch (e) { 
+    console.error(e.message); 
+  }
+
+  return result;
 }
 
-module.exports = router;
+/////////////////////////////////////////////////////////////////////////////////
+// Search functionality
+// 1. GET route for '*' - if we got this far, its a category
+// 2. getCategory - run the sql query
+// 3. createCategory - iterate over the levels and create where necessary
+/////////////////////////////////////////////////////////////////////////////////
+async function getCategory(categoryText) {
+
+  const pageDataQuery = 
+  `SELECT C.CATEGORYTEXT, 
+          C.CATEGORYID, 
+          C.PARENT, 
+	  B.TITLE, 
+	  B.BLOCKID, 
+	  R.CREATED, 
+	  U.USERNAME, 
+	  R.TEXT, 
+	  R.REVISIONID
+   FROM USERS U 
+   INNER JOIN REVISIONS R ON U.USERID = R.USERID 
+   INNER JOIN BLOCKS B ON R.BLOCKID = B.BLOCKID 
+   INNER JOIN BLOCKS_CATEGORIES X ON X.BLOCKID = B.BLOCKID 
+   INNER JOIN CATEGORIES C ON C.CATEGORYID = X.CATEGORYID 
+   WHERE C.CATEGORYTEXT = ?
+   AND R.STATUS = ?
+   ORDER BY R.REVISIONID DESC 
+   LIMIT 1`; // order / limit because weird bug TBD
+
+  results = await connection.query(pageDataQuery, [categoryText, conf.CURRENT]);
+
+  results = results.shift(); 
+
+  return results;
+}
+
+/* If we haven't matched a route by here, then it is a category */
+//app.get('*', function(req, res, next) {
+app.get('*', async function(req, res, next) {
+
+   console.log("In default handler req.url is "+ req.url+ " and path is "+req.path+" and originalUrl is "+req.originalUrl);
+
+   let candidateUrl = req.path;
+
+   const results = await getCategory(candidateUrl);
+
+   if (typeof(results) !== 'undefined') {
+
+     /* transform the text */
+     results.renderedText = generateLinks(results.TEXT);
+     results.renderedText = bbfyText(results.renderedText);
+  
+     /* get the category's children */
+     results.kids = await getChildCategories(results.BLOCKID);
+
+     res.render('page', { 
+       'categorytext' : results.CATEGORYTEXT,
+       'categoryid' : results.CATEGORYID, 
+       'parentid' : results.PARENT, 
+       'title' : results.TITLE, 
+       'blockid' : results.BLOCKID, 
+       'revisionid' : results.REVISIONID, 
+       'created' : results.CREATED, 
+       'text' : results.renderedText,
+       'state' : conf.FOUND,
+       'logged_in_user' : req.logged_in_user,
+       'username' : results.username,
+       'levels' : createBreadCrumbs(req.categoryData.levels),
+       'kids' : results.kids, 
+     });
+
+   } else {
+      console.log(req.originalUrl+" was not found, generating."); 	     
+      req.categoryData.state = NOTFOUND;
+
+      /* redirect browser to login */
+      if (!req.isAuthenticated || !req.isAuthenticated()) {
+        if (req.session) {
+          req.session.returnTo = req.originalUrl || req.url;
+        }
+
+       // redirecting here?
+       return res.redirect('/login');
+     } 
+
+       // closing brace added here
+       createCategory(req,res);
+
+       console.log("in *, about to redirect to "+req.path); 	     
+       res.redirect(req.path);
+     } // added here
+   });
+  //});
+
+  function createCategory(req,res) {
+    
+    let candidateCategory = "";
+    let parentId = 1;
+  
+    for (let i = 0; i < req.categoryData.levels.length; i++) {
+  
+      /* construct the URL level by level */
+      if (i === 0) {
+        candidateCategory = candidateCategory + "/" + req.categoryData.levels[i];
+      } else if (i === req.categoryData.levels.length -1) {
+        candidateCategory = candidateCategory + "/" + req.categoryData.levels[i];
+      } else {
+        candidateCategory = candidateCategory + req.categoryData.levels[i] + "/";
+      }
+      
+      console.log("createCategory: at the "+i+"th level candidateCategory is "+candidateCategory);
+  
+      const findCatQuery = `SELECT CATEGORYID FROM CATEGORIES WHERE CATEGORYTEXT = ?`;
+      
+      connection.get(findCatQuery, [candidateCategory], (err, row) => {
+  
+        if (err) {
+         return console.error(err.message);
+        }
+  
+        if (typeof(row) !== "undefined") {
+  
+          parentId = row.CATEGORYID;
+          console.log("parentid is now "+parentId);
+  
+        } else {
+  
+          console.log(`category ${candidateCategory} does not exist`);
+    
+       /* When a category is created we need to also create an initial Revision, Block, Revision, and Blocks_Revisions */
+       connection.beginTransaction(function(err, transaction) {
+          connection.run(`INSERT INTO CATEGORIES (CATEGORYTEXT,PARENT,CREATED) VALUES (?,?,DATETIME('now'))`, [candidateCategory, parentId], (err) => {
+            if (err) {
+              console.error(err.message);
+              transaction.rollback(function(err) {
+                if (err) return console.log(`Error: ${err.message}`);
+  	    });
+  
+            } else {
+              console.log(`A row has been inserted into categories with rowid ${this.lastID}`);
+            }
+          });
+  
+          connection.run(`INSERT INTO BLOCKS (TITLE, CREATED, TYPE) VALUES ((SELECT CATEGORYTEXT FROM CATEGORIES WHERE CATEGORYID = last_insert_rowid()), DATETIME('now'), 1)`, (err) => {
+            if (err) {
+              return console.error(err.message);
+              transaction.rollback(function(err) {
+                if (err) return console.log(`Error: ${err.message}`);
+  	    });
+  
+            }
+  
+          });
+  
+          connection.run(`INSERT INTO BLOCKS_CATEGORIES (BLOCKID, CATEGORYID) VALUES ((SELECT MAX(BLOCKID) FROM BLOCKS),(SELECT MAX(CATEGORYID) FROM CATEGORIES))`,  (err) => {
+            if (err) {
+              return console.error(err.message);
+  
+              transaction.rollback(function(err) {
+                if (err) return console.log(`Error: ${err.message}`);
+  	    });
+  
+            }
+  
+            console.log(`A row has been inserted into blocks_categories with rowid ${this.lastID}`);
+          });
+  
+          //connection.run(`INSERT INTO REVISIONS (TEXT, BLOCKID, CREATED, USERID) VALUES ("", (SELECT MAX(BLOCKID) FROM BLOCKS),DATETIME("now"), ? )`, [req.user.USERID], (err) => {
+          connection.run(`INSERT INTO REVISIONS (TEXT, BLOCKID, CREATED, USERID) VALUES ("", (SELECT MAX(BLOCKID) FROM BLOCKS),DATETIME("now"), ? )`, [req.user.userid], (err) => {
+            if (err) {
+  
+              return console.error(err.message);
+             
+              transaction.rollback(function(err) {
+                if (err) return console.log(`Error: ${err.message}`);
+  	    });
+            }
+  
+            console.log(`A row has been inserted into revisions with rowid ${this.lastID}`);
+          });
+  
+          transaction.commit(function(err) {
+            if (err) 
+              return console.log(`Error: ${err.message}`);
+  
+            console.log(`creation of new Category ${req.categoryData.categoryText}`);
+  	});
+       });
+  
+       } // else
+      });
+      
+    }
+  
+  }
+  
+  ////////////////////////////////////////////////////////////////////////////
+  // Misc formatting functions
+  ////////////////////////////////////////////////////////////////////////////
+
+  /* generate links from wikilink code */
+  function generateLinks(text) {
+    const reg = /\b__([\w\/]+)__\b/g;
+    let tags;
+    if (text) {
+      tags = text.replace(reg, "<a href=$1>$1</a>");
+    } else {
+      console.log("Warning, text sent to generateLinks() was undefined.");
+    }
+    return tags;
+  }
+  
+  /* basic bbcode transformations */
+  function bbfyText(text) {
+    if (text) {
+      const convert = bbfy.converter();
+      text = convert(text);
+    } else {
+      console.log("Warning, text sent to bbfyText() was undefined.");
+    } 
+    return text;
+  }
+  
+  /* navigating the hierarchy */
+  function createBreadCrumbs(levels) {
+  
+    console.log(`createBreadCrumbs: ${levels}`);
+ 
+    let crumbs = [];
+    crumbs[0] = { "name" : "/", "href" : "/" };
+    let crumbHref = ""; 
+    for ( i = 0; i < levels.length; i++) {
+      let href = crumbHref + "/" + levels[i];
+      crumbs[i+1] = { "name" : levels[i], "href" : href };
+      crumbHref = href;
+    }
+ 
+    console.log(`createBreadCrumbs returning ${crumbs}`); 
+    return crumbs;
+  }
+};

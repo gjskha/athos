@@ -2,11 +2,11 @@
 document.addEventListener('DOMContentLoaded', function() {
 
   /* common variables to all tabs */
-  const hosturl = 'http://localhost:3000';
+  const hosturl = 'http://localhost:8080';
   /* TBD hash these */
   const blockid = document.getElementById("blockid").textContent;
   const revisionid = document.getElementById("revisionid").textContent;
-  //const userid = document.getElementById("userid").textContent;
+  const categoryid = document.getElementById("categoryid").textContent;
 
   /* Create a form for editing a page */
   editLink = document.getElementById("edit");
@@ -22,7 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
       let textArea = document.createElement("TEXTAREA");
       textArea.id = "editText";
       textArea.cols = 50;
-      textArea.rows = 150;
+      textArea.rows = 20;
       textArea.value = response.data.result[0].TEXT;
 
       let taLabel = document.createTextNode("Edit Category");
@@ -41,10 +41,22 @@ document.addEventListener('DOMContentLoaded', function() {
  
       swapChildNodes(form);
   
+
       submitButton.addEventListener("click", function(){
+        event.preventDefault();
         let edits = textArea.value;
         axios.post(hosturl+'/internal/revisions','block_id='+blockid+'&revision_text='+edits).then((response) => {
-           let resultText = (response.status === 201) ? 'Successful edit!' : 'Something went wrong.'; 
+
+           // let resultText = (response.status === 201) ? 'Successful edit!' : 'Something went wrong.'; 
+           let resultText; 
+           if ( response.status === 201) {
+             resultText = 'Successful edit!'; 
+           } else if ( response.status === 403) {
+             resultText = 'Log in to edit!'; 
+           } else { 
+             resultText = 'Something went wrong.'; 
+           }
+
            let resultDiv = document.createElement("DIV");
            //resultDiv.className = "alert";
            resultDiv.className = "success";
@@ -99,7 +111,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // create a row for every revision
     for (let i = 0; i < resultLength; i++) {
       let revisionId = response.data.result[i].REVISIONID;
-      let revisionUser = response.data.result[i].USERNAME;
+      //let revisionUser = response.data.result[i].USERNAME;
+      let revisionUser = response.data.result[i].username;
       let revisionCreated = response.data.result[i].CREATED;
 
       let row = document.createElement("TR");    
@@ -229,15 +242,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
       const resultLength = response.data.result.length; 
 
-
       for (let i = 0; i < resultLength; i++) {
-
         let categoryItem = document.createElement("LI");
-        let categoryText = document.createTextNode(response.data.result[i].CATEGORYTEXT);
+        let catName = response.data.result[i].CATEGORYTEXT;
+        // let categoryText = document.createTextNode(response.data.result[i].CATEGORYTEXT);
+        let categoryText = document.createTextNode(catName);
+       
         categoryItem.appendChild(categoryText);
+        categoryItem.id = catName;
         categoryList.appendChild(categoryItem);
+
+        //if (i == 0) {
+        //  categoryList.style.fontStyle = "italic";
+        //}
+
+        // not allowed to remove primary category 
+        if (i > 0) {
+          let closeBtn = makeClose(catName, function() {
+             categoryItem.style.display = "none";
+             
+             // axios.delete(deleteCatUrl, 'category_text='+candidateUrl).then((response) => {});
+          
+          });
+          categoryItem.appendChild(closeBtn);
+        }
       }
-      //swapChildNodes(categoryList);
  
     });
     let addCatBtn = document.createElement("BUTTON");
@@ -246,8 +275,7 @@ document.addEventListener('DOMContentLoaded', function() {
     addCatBtnLi.appendChild(addCatBtn);	 
     categoryList.appendChild(addCatBtnLi);
 
-    // add category button functionality
-	 
+    // Add Category button functionality
     addCatBtn.addEventListener("click", function(){
       let form = document.createElement("FORM");
       form.id = "addCategory";
@@ -256,8 +284,7 @@ document.addEventListener('DOMContentLoaded', function() {
       textBox.placeholder="Enter a category";
       textBox.type = "Text"	    
       textBox.id = "textCategory";
-      textBox.setAttribute('width', '70%');	    
-      textBox.setAttribute('size', '70');	    
+      textBox.setAttribute("size", "70");	    
       form.appendChild(textBox);
 
       /* submit button */
@@ -268,15 +295,44 @@ document.addEventListener('DOMContentLoaded', function() {
       form.appendChild(document.createElement("BR"));
       form.appendChild(submitButton);
 
-      submitButton.addEventListener("click", function() {
-	alert(textBox.value);
-	// check if category exists, if it doesn't, fail     
-	/* const addCatUrl = hosturl + "/internal/blocks/" + 
-		      blockid + "/categories/" + categoryid;
-	
-        axios.patch(addCaturl).then((response) => {
-	});*/
+      submitButton.addEventListener("click",function() {
 
+	const addCatUrl = hosturl + "/internal/blocks/" + 
+          blockid + "/categories";
+        
+        const candidateUrl = textBox.value;
+        let responseDiv = document.createElement("DIV");
+        let responseTxt;
+        
+        axios.post(addCatUrl, 'category_text='+candidateUrl).then((response) => {
+          //alert(response.status);
+
+          if (response.status == 201) {
+             responseTxt = "Category added!";
+             responseDiv.className = "success";
+             responseDiv.appendChild(document.createTextNode(responseTxt));
+             
+             /* add to list of categories */
+             categoryItem = document.createElement("LI");
+	     categoryItem.appendChild(document.createTextNode(candidateUrl));
+	     categoryList.appendChild(categoryItem);
+
+             let msgArea = document.getElementById("msg_area");
+	     msgArea.appendChild(responseDiv);
+       
+             modalBg.style.display = "none";
+          } 
+
+        }, (error) => {
+          const errMsg = "Server responsed with '"+error+"' -- perhaps the category doesn't exist?";  
+          let errorDiv = document.createElement("DIV");
+          errorDiv.appendChild(document.createTextNode(errMsg));
+          errorDiv.className = "alert";
+	  form.appendChild(errorDiv);
+        });
+     
+        
+        event.preventDefault();
       });
 
       makeModal(form);	    
@@ -321,12 +377,10 @@ document.addEventListener('DOMContentLoaded', function() {
     let modalBg = document.createElement("DIV");
     modalBg.className = "modal";
     let closeBtn = document.createElement("SPAN");
-    //closeBtn.appendChild(document.createTextNode("&times;"));	  
     closeBtn.innerHTML = "&times;";	  
     closeBtn.className = "close";
     closeBtn.addEventListener("click", function(){
       modalBg.style.display = "none";
-
     });
     // attach closeBtn to modal-content	  
     let modal = document.createElement("DIV");
@@ -339,11 +393,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     modalBg.appendChild(modal);
     modalBg.style.display = "block";
+
     // attach modalBg to body	  
-    
     let body = document.getElementsByTagName("BODY")[0];
     	    
-     body.appendChild(modalBg);	 
+    body.appendChild(modalBg);	 
+  }
+
+  function makeClose(name, closeFunc) {
+    closeBtn = document.createElement("SPAN");
+    closeBtn.innerHTML = "&times;";	  
+    closeBtn.className = "smallClose";
+    closeBtn.addEventListener("click",closeFunc); 
+    return closeBtn;
   }
 /*
   window.onclick = function(event) {

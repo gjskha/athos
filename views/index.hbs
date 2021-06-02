@@ -1,19 +1,29 @@
 <h1>{{title}}</h1>
 
-<p>Welcome to {{levels}} </p>
+<h2>
+About
+</h2>
+<p>
 
-<script>
-window.onscroll = function() {myFunction()};
+Gwiki features typical functionality for a wiki. This includes versioning, authorship, 
+comparisons between versions, and linking between pages. 
 
-var navbar = document.getElementById("navbar");
-var sticky = navbar.offsetTop;
-
-function myFunction() {
-  if (window.pageYOffset >= sticky) {
-    navbar.classList.add("sticky")
-  } else {
-    navbar.classList.remove("sticky");
-  }
-}
-</script>
+However, what sets Gwiki apart from traditional wikis is the ability to organize user generated content 
+into one or more flexible hierarchies. 
+</p>
+<h2>Markup</h2>
+<p>
+<ul>
+<li> Linking to another wiki page works like __this__ </li>
+<li> Common BBCode tags will also work</li> 
+</p>
+<h2>Explore</h2>
+<p>
+Here are the top level categories:
+<ul>
+{{#each kids}}
+<li><a href="{{this}}">{{this}}</a></li>
+{{/each}}
+</ul>
+</p>
 

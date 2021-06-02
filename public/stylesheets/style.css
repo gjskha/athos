@@ -50,7 +50,8 @@ a {
   border-radius: 4px;
 }
 
-/* Style the logo link (notice that we set the same value of line-height and font-size to prevent the header to increase when the font gets bigger */
+/* Style the logo link (notice that we set the same value of line-height and
+ * font-size to prevent the header to increase when the font gets bigger */
 .header a.logo {
   font-size: 25px;
   font-weight: bold;
@@ -74,7 +75,8 @@ a {
   float: right;
 }
 
-/* Add media queries for responsiveness - when the screen is 500px wide or less, stack the links on top of each other */
+/* Add media queries for responsiveness - when the screen is 500px wide or
+ * less, stack the links on top of each other */
 @media screen and (max-width: 500px) {
   .header a {
     float: none;
@@ -110,6 +112,11 @@ a {
   border: 1px solid #ff0000;
   background-color: #ffb3b3;
   border-radius: 4px;
+}
+
+#editText {
+  height: auto;
+  width: auto;
 }
 
 /* https://www.w3schools.com/howto/howto_css_modals.asp */
@@ -151,4 +158,18 @@ a {
   text-decoration: none;
   cursor: pointer;
 }
-/*********************************************
+
+/* end modal CSS */
+
+.smallClose {
+  color: #aaa;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.smallClose:hover,
+.smallClose:focus {
+  color: black;
+  text-decoration: none;
+  cursor: pointer;
+}

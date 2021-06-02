@@ -1,17 +1,11 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <title>{{title}}</title>
-    <link rel='stylesheet' href='/stylesheets/style.css' />
-  </head>
- <!DOCTYPE html>
 <html lang="en">
 <head>
 
-	<!-- Basic Page Needs -->
+  <!-- Basic Page Needs -->
   <meta charset="utf-8">
-  <title>Gwiki</title>
-  <meta name="description" content="">
+  <title>Gwiki - {{title}}</title>
+  <meta name="description" content="Hierarchical Wiki">
   <meta name="author" content="">
 
   <!-- Mobile Specific Metas -->
@@ -37,16 +31,17 @@
 <div class="header">
 <a href="/" class="logo">Gwiki</a>
   <div class="header-right">
-    {{#if username}}
-    Logged in as {{username}}
+  <a href="/search">Search</a>	  
+    {{#if logged_in_user}}
+    <a href="#">Hello, {{logged_in_user}}</a>
     {{else}}
-  <a href="/users/register">Register</a>
-  <a href="/users/login">Login</a>
+  <a href="/register">Register</a>
+  <a href="/login">Login</a>
     {{/if}}
 </div> 
 </div>
 <!-- div id="content"> -->
-	<!-- Primary Page Layout -->
+<!-- Primary Page Layout -->
   <div class="container">
     <div class="row">
     <!-- <div class="one-half column"> -->
@@ -55,8 +50,6 @@
       </div>
     </div>
   </div>
-
   <!--< /div>  --><!-- content -->
-
 </body>
 </html>

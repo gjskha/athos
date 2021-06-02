@@ -1,29 +1,33 @@
 {
-  "name": "athos",
-  "version": "0.0.0",
-  "private": true,
+  "name": "Gwiki",
+  "version": "1.0.0",
+  "main": "app.js",
   "scripts": {
-    "start": "node ./bin/www"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node app.js"
   },
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "bcrypt": "^5.0.1",
+    "bbfy": "^0.1.0",
     "bcrypt-nodejs": "0.0.3",
+    "body-parser": "^1.19.0",
     "connect-ensure-login": "^0.1.1",
     "connect-flash": "^0.1.1",
-    "cookie-parser": "~1.4.4",
+    "cookie-parser": "^1.4.5",
     "cors": "^2.8.5",
-    "debug": "~2.6.9",
-    "express": "~4.16.1",
-    "express-session": "^1.17.1",
+    "date-and-time": "^1.0.0",
+    "express": "^4.17.1",
+    "express-session": "^1.17.2",
     "hbs": "^4.1.2",
-    "http-errors": "~1.6.3",
-    "morgan": "~1.9.1",
-    "node-pre-gyp": "^0.17.0",
+    "morgan": "^1.10.0",
     "passport": "^0.4.1",
     "passport-local": "^1.0.0",
-    "sequelize": "^6.6.2",
+    "path": "^0.12.7",
     "simplediff": "^0.1.1",
     "sqlite3": "^5.0.2",
-    "sqlite3-transactions": "0.0.5"
+    "sqlite3-transactions": "0.0.5",
+    "underscore": "^1.13.0-2",
+    "uuid": "^8.3.2"
   }
 }

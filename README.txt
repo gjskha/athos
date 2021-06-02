@@ -1,28 +1,36 @@
+##INSTALL 
 
-   create : athos/
-   create : athos/public/
-   create : athos/public/javascripts/
-   create : athos/public/images/
-   create : athos/public/stylesheets/
-   create : athos/public/stylesheets/style.css
-   create : athos/routes/
-   create : athos/routes/index.js
-   create : athos/routes/users.js
-   create : athos/views/
-   create : athos/views/error.hbs
-   create : athos/views/index.hbs
-   create : athos/views/layout.hbs
-   create : athos/app.js
-   create : athos/package.json
-   create : athos/bin/
-   create : athos/bin/www
+# pre-requisites
+Requires a recent version of node, npm and sqlite3
 
-   install dependencies:
-     $ npm install
+Node and NPM:
 
-   run the app:
-     $ DEBUG=athos:* npm start
+https://nodejs.org/en/download/
 
-https://github.com/jaredhanson/connect-flash
-https://github.com/sequelize/express-example
-https://github.com/passport/express-4.x-local-example
+SQLite:
+
+Installing the Node sqlite library will also install the sqlite binary with no intervention, but the sqlite download page for reference is here:
+
+https://sqlite.org/download.html 
+
+#install DB file
+
+The code repo includes a sqlite database file ready to go.
+To (re-)instantiate the database, go to the subdirectory 'db' and import the datadump.sql file like this:
+
+#install libraries
+run `npm install` in the root level directory to install the libraries used by the application
+
+##RUN
+
+1. run `npm start` to run the server.
+
+2. In the browser, go to http://localhost:8080 to begin using the application.
+
+3. Register an account at http://localhost:8080/register.
+
+4. Browse to http://localhost:8080/login to login with your new username.
+
+5. Alternatively, use the user/pass combo of demo/demo
+
+6. Each wiki page has a View tab for viewing, Edit for editing, History for viewing diffs between versions, and Categories for manipulating category data for a page.

@@ -3,7 +3,6 @@
 <h4>
 {{#levels}}
   <a href="{{this.href}}">{{this.name}}</a> 
-
   {{#unless @last}} 
   &rarr;
   {{/unless}}
@@ -16,22 +15,32 @@
   <a id="history" href="#history">History</a>
   <a id="categories" href="#categories">Categories</a>
 </div>
-
+<div id="msg_area"></div>
 <div id="page_data">
+<div id="blockid" style="display: none">{{blockid}}</div>
+<div id="revisionid" style="display: none">{{revisionid}}</div>
+<div id="categoryid" style="display: none">{{categoryid}}</div>
   <ul class="page">
-    <!-- <li>Title is {{title}} -->
-
-    <!-- <li>{{categorytext}} -->
-    <!-- <li>{{categoryid}}
-    <li>{{parentid}}
-    <li>{{blockid}} -->
-    <div id="blockid" style="display: none">{{blockid}}</div>
-    <div id="revisionid" style="display: none">{{revisionid}}</div>
-    <li>{{text}}
-     <li>last edited at {{created}} by {{username}}
-     <li>Child categories (TBD)
+    <!-- <li>{{categorytext}} </li> -->
+    <!-- <li>{{parentid}} </li>
+    <li>{{blockid}} </li> -->
+    {{#if text}}
+    <li>{{{text}}}</li>
+     <li>last edited at {{created}} by {{username}} </li>
+    {{else}}
+    <li><i>No content yet!</i></li>
+     <li>created by {{username}} at {{created}} </li>
+    {{/if}}
+     {{#if kids}}
+     <li>Child categories:
+       <ul>
+       {{#each kids}}
+       <li><a href="{{this}}">{{this}}</a></li>
+       {{/each}}
+       </ul>
+     </li>
+     {{/if}}
   </ul>
 </div>
 
 <script src="/javascripts/page.js"></script>
-

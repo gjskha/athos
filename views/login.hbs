@@ -1,13 +1,23 @@
-<form action="/users/login" method="post">
+<div>
+<h1>Login to Gwiki</h1>
+</div>
+{{#if message}}
+<div class="alert">{{message}}</div>
+{{/if}}
+<form action="/login" method="post">
     <div>
-        <label>Username:</label>
+        <label>Username</label>
         <input type="text" name="username"/>
     </div>
     <div>
-        <label>Password:</label>
+        <label>Password</label>
         <input type="password" name="password"/>
     </div>
     <div>
         <input type="submit" value="Log In"/>
     </div>
 </form>
+<div>
+<p><a href="/register">Register with Gwiki.</a></p>
+</div>
+

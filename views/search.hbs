@@ -1,0 +1,26 @@
+<h1>
+Search 
+{{#if term}}
+Results For '{{term}}'
+{{/if}}
+</h1>
+<form id="searchform" action="/search" method="POST">
+<label>Search term</label>
+<input type="text" name="term" 
+{{#if term}}
+value="{{term}}"
+{{/if}}
+/>
+<br/>
+<input type="submit" name="submit" value="Search" />
+</form>
+<div id="content">
+{{#if results}}
+<hr />
+<ul>
+{{#each results}}
+<li><a href="{{this.CATEGORYTEXT}}">{{this.CATEGORYTEXT}}</a></li>
+{{/each}}
+</ul>
+{{/if}}
+</div>
