@@ -495,9 +495,6 @@ module.exports = function(app, passport, connection) {
   // 3. DELETE route to remove category from block
   // 4. removeCategoryFromBlock()
   /////////////////////////////////////////////////////////////////////////////
-  //app.patch('/internal/blocks/:block_id/categories/:category_id', ensureLoggedIn('/login'), async function(req, res, next) {
-  //app.patch('/internal/blocks/:block_id/categories/:category_text', ensureLoggedIn('/login'), async function(req, res, next) {
-  //app.get('/internal/blocks/:block_id/categories/:category_text', ensureLoggedIn('/login'), async function(req, res, next) {
   app.post('/internal/blocks/:block_id/categories', ensureLoggedIn('/login'), async function(req, res, next) {
    
     const blockId = req.params.block_id;

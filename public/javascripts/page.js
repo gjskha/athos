@@ -2,7 +2,7 @@
 document.addEventListener('DOMContentLoaded', function() {
 
   /* common variables to all tabs */
-  const hosturl = 'http://localhost:8080';
+  const hosturl = 'http://localhost:8081';
   /* TBD hash these */
   const blockid = document.getElementById("blockid").textContent;
   const revisionid = document.getElementById("revisionid").textContent;

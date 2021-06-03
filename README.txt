@@ -1,11 +1,16 @@
-##INSTALL 
+# Gwiki
 
-# pre-requisites
-Requires a recent version of node, npm and sqlite3
+## INSTALL 
 
-Node and NPM:
+### pre-requisites
+
+Gwiki requires a recent version of node, npm, and sqlite. Gwiki is known to work with 
+
+Node is available here:
 
 https://nodejs.org/en/download/
+
+Download the pre-built installer for your platform, and follow the instructions. NPM is distributed with Node.
 
 SQLite:
 
@@ -13,23 +18,26 @@ Installing the Node sqlite library will also install the sqlite binary with no i
 
 https://sqlite.org/download.html 
 
-#install DB file
+### install DB file
 
 The code repo includes a sqlite database file ready to go.
 To (re-)instantiate the database, go to the subdirectory 'db' and import the datadump.sql file like this:
 
-#install libraries
+$ sqlite3 database.db < database.dump
+
+### install libraries
+
 run `npm install` in the root level directory to install the libraries used by the application
 
-##RUN
+# RUNNING 
 
 1. run `npm start` to run the server.
 
-2. In the browser, go to http://localhost:8080 to begin using the application.
+2. In the browser, go to http://localhost:8081 to begin using the application.
 
-3. Register an account at http://localhost:8080/register.
+3. Register an account at http://localhost:8081/register.
 
-4. Browse to http://localhost:8080/login to login with your new username.
+4. Browse to http://localhost:8081/login to login with your new username.
 
 5. Alternatively, use the user/pass combo of demo/demo
 

@@ -17,7 +17,8 @@ var TransactionDatabase = require("sqlite3-transactions").TransactionDatabase;
 var ensureLoggedIn = require('connect-ensure-login').ensureLoggedIn;
 var cors = require('cors');
 
-var port = process.env.PORT || 8080;
+var port = process.env.PORT || 8081;
+
 var app = express();
 
 /* connect to the database */
