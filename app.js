@@ -22,8 +22,7 @@ var port = process.env.PORT || 8081;
 var app = express();
 
 /* connect to the database */
-//const dbfile = path.join(__dirname, './db', 'database.db');
-const dbfile = path.join(__dirname, './db', 'a.db');
+const dbfile = path.join(__dirname, './db', 'database.db');
 var connection = new TransactionDatabase(
   new sqlite3.Database(dbfile, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE)
 );
@@ -81,7 +80,6 @@ app.use(passport.session());
 app.use(flash()); 
 
 /* routing goes here */
-//require('./app/routes.js')(app, passport, connection); 
 require('./routes')(app, passport, connection); 
 
 app.listen(port);
