@@ -767,8 +767,8 @@ async function getCategory(categoryText) {
    INNER JOIN CATEGORIES C ON C.CATEGORYID = X.CATEGORYID 
    WHERE C.CATEGORYTEXT = ?
    AND R.STATUS = ?
-   ORDER BY R.REVISIONID DESC 
-   LIMIT 1`; // order / limit because weird bug TBD
+   ORDER BY R.REVISIONID ASC
+   LIMIT 1`; // order / limit because BUG TBD
 
   results = await connection.query(pageDataQuery, [categoryText, conf.CURRENT]);
 

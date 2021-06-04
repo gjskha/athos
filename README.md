@@ -1,43 +1,31 @@
-# Gwiki
+1. Set up the environment
 
-## Installation 
+Ensure you have the Node environment installed. Commands will be executed through the npm command, which comes with Node.  Gwiki is known to work with Node 14.16.1, NPM 6.14.12 and SQLite 3.35.5.
 
-Gwiki requires a recent version of Node, NPM, and SQLite. Gwiki is known to work with Node 14.16.1, NPM 6.14.12 and SQLite 3.35.5.
+Node is available here: https://nodejs.org/en/download/
 
-### Node
+Download the pre-built installer for your platform, and follow the instructions.
 
-Node is available here:
+2. Installing supporting libraries
 
-https://nodejs.org/en/download/
+run  this command in the root level directory to install the libraries used by the application:
 
-Download the pre-built installer for your platform, and follow the instructions. NPM is distributed with Node. 
+$ npm install
+`
+3. Installing SQLite
 
-### NPM libraries
+Installing the supporting libraries in the step above will also install the SQLite binary with no intervention. However, on the possibility it has to be installed separately, the SQLite download page is here: https://sqlite.org/download.html
 
-run `npm install` in the root level directory to install the libraries used by the application.
+4. Importing data into SQLite (optional)
 
-### SQLite
+The code repo includes a SQLite database file ready to go. You don't have do anything. However, if necessary, to (re-)instantiate the database, go to the subdirectory 'db' and import the datadump.sql file like this:
 
-Installing the NPM sqlite interface will also install the sqlite binary with no intervention, but the sqlite download page for reference is here:
+$ sqlite3 database.db < DATABASE.DUMP
 
-https://sqlite.org/download.html 
+6. Running the server
 
-#### Importing data into SQLite
+In the root level of the code repo type this into a console:
 
-The code repo includes a sqlite database file ready to go. You don't have do anything. However, if necessary, to (re-)instantiate the database, cd to the subdirectory 'db' and import the datadump.sql file like this:
+$ npm start
 
-`$ sqlite3 database.db < database.dump`
-
-## Running 
-
-1. run `npm start` to run the server.
-
-2. In the browser, go to http://localhost:8081 to begin using the application. Make sure you have Internet access for third-party CDN usage.
-
-3. To begin, register an account at http://localhost:8081/register. It will log you in upon success.
-
-4. You can also go to http://localhost:8081/login to login with your username.
-
-5. Alternatively, use the built in user/pass combo of demo/demo
-
-6. Each wiki page has a View tab for viewing, Edit for editing, History for viewing diffs between versions, and Categories for manipulating category data for a page.
+The server should now start.
