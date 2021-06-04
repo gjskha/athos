@@ -79,10 +79,11 @@ module.exports = function(app, passport, connection) {
   // 2) POST login data to passport
   // 3) GET registration form route
   // 4) POST registration data to passport
-  // 5) profile (TBD)
-  // 6) GET logout route
+  // 5) profile
+  // 6) getUserContributions selects user's edits for profile page
+  // 7) GET logout route
   //  
-  // login logic uses code/algorithms sourced from from:
+  // login logic uses some code/algorithms sourced from from:
   // https://github.com/manjeshpv/node-express-passport-mysql
   ///////////////////////////////////////////////////////////////////////////
 
@@ -113,6 +114,11 @@ module.exports = function(app, passport, connection) {
     res.redirect('/');
   });
 
+  app.get('/logout', function(req, res) {
+    req.logout();
+    res.redirect('/');
+  });
+
   /* registration screens */
   app.get('/register', function(req, res) {
     res.render('register', { message: req.flash('signupMessage') });
@@ -128,22 +134,35 @@ module.exports = function(app, passport, connection) {
    })
   );
 
-  //app.get('/profile', isLoggedIn, function(req, res) {
   app.get('/profile', ensureLoggedIn('/login'), async function(req, res) {
-    // TBD: use contributions	  
+    // user contributions
+    const results = await getUserContributions(req.user.userid);
     res.render('profile', {
-      //user : req.user 
-      logged_in_user : req.logged_in_user, 
+      contributions : results,
+      logged_in_user : req.logged_in_user,
     });
   });
 
-  app.get('/logout', function(req, res) {
-    req.logout();
-    res.redirect('/');
-  });
-
-  /* TBD: select user's contributions for profile page */ 
+  /* select user's contributions for profile page */ 
   async function getUserContributions(userId) {
+    const userContribQuery = 
+        `select r.created, c.categorytext
+           from revisions r
+     inner join users u on u.userid = r.userid
+     inner join blocks b on r.blockid = b.blockid
+     inner join blocks_categories x on x.blockid = b.blockid
+     inner join categories c on c.categoryid = x.categoryid
+     where u.userid = ?`;
+
+    let result;
+    try {
+      result = await connection.query(userContribQuery, [userId]);
+      console.log(result); 
+    } catch (e) { 
+      console.error(e.message); 
+    }
+
+    return result;
   }
 
   /////////////////////////////////////////////////////////////////////////////////
@@ -289,7 +308,7 @@ module.exports = function(app, passport, connection) {
     let diffText;
   
     try {
-      const revisionCompareQuery = `select REVISIONID,TEXT,CREATED from revisions where revisionid = ? or revisionid = ?`;
+      const revisionCompareQuery = `SELECT REVISIONID,TEXT,CREATED FROM REVISIONS WHERE REVISIONID = ? OR REVISIONID = ?`;
       result = await connection.query(revisionCompareQuery, [left,right]);
   
     } catch (e) { 
@@ -744,12 +763,14 @@ async function performSearch(term) {
 
 /////////////////////////////////////////////////////////////////////////////////
 // Search functionality
-// 1. GET route for '*' - if we got this far, its a category
-// 2. getCategory - run the sql query
+// 1. getCategory - run the sql query
+// 2. GET route for '*' - if we got this far, its a category
 // 3. createCategory - iterate over the levels and create where necessary
 /////////////////////////////////////////////////////////////////////////////////
 async function getCategory(categoryText) {
 
+  /* currently, this doesn't guarantee that it returns the "first" category if 
+   * a block has more than one category */
   const pageDataQuery = 
   `SELECT C.CATEGORYTEXT, 
           C.CATEGORYID, 
@@ -778,10 +799,9 @@ async function getCategory(categoryText) {
 }
 
 /* If we haven't matched a route by here, then it is a category */
-//app.get('*', function(req, res, next) {
 app.get('*', async function(req, res, next) {
 
-   console.log("In default handler req.url is "+ req.url+ " and path is "+req.path+" and originalUrl is "+req.originalUrl);
+   console.log("In default handler req.url is "+ req.url+ " and path is "+req.path);
 
    let candidateUrl = req.path;
 
@@ -822,18 +842,15 @@ app.get('*', async function(req, res, next) {
           req.session.returnTo = req.originalUrl || req.url;
         }
 
-       // redirecting here?
        return res.redirect('/login');
      } 
 
-       // closing brace added here
        createCategory(req,res);
 
        console.log("in *, about to redirect to "+req.path); 	     
        res.redirect(req.path);
-     } // added here
+     } 
    });
-  //});
 
   function createCategory(req,res) {
     

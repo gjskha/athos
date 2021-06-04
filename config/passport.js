@@ -1,5 +1,8 @@
-/* Code pertaining to logging in and registering user accounts */
-/* some code adapted from https://github.com/manjeshpv/node-express-passport-mysql */
+/////////////////////////////////////////////////////////////////////////////
+// Code pertaining to logging in and registering user accounts
+// Some code here was adapted from:
+// https://github.com/manjeshpv/node-express-passport-mysql
+/////////////////////////////////////////////////////////////////////////////
 var LocalStrategy   = require('passport-local').Strategy;
 var bcrypt = require('bcrypt-nodejs');
 
@@ -41,7 +44,6 @@ module.exports = function(passport,connection) {
            var insertQuery = "insert into users ( username, password ) values (?,?)";
            connection.run(insertQuery, [newUserStruct.username, newUserStruct.password], function(err, rows) {
 
-             //newUserStruct.id = this.lastID;
              newUserStruct.userid = this.lastID;
              return done(null, newUserStruct);
 
@@ -55,8 +57,6 @@ module.exports = function(passport,connection) {
   passport.use(
     'local-login',
     new LocalStrategy({
-      //usernameField : 'USERNAME',
-      //passwordField : 'PASSWORD',
       usernameField : 'username',
       passwordField : 'password',
       passReqToCallback : true // allows us to pass back the entire request to the callback

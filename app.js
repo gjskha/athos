@@ -1,9 +1,10 @@
-/* Gwiki startup code performs the following:
- * 1) Creates the database connection
- * 2) calls in passport configuration
- * 3) general settings
- * 4) imports routes
- */
+/////////////////////////////////////////////////////////////////////////////
+// Gwiki startup code performs the following:
+// 1) Creates the database connection
+// 2) calls in passport configuration
+// 3) general settings
+// 4) imports routes
+/////////////////////////////////////////////////////////////////////////////
 var express = require('express');
 var session = require('express-session');
 var cookieParser = require('cookie-parser');
@@ -76,7 +77,6 @@ app.use(
 ); 
 app.use(passport.initialize());
 app.use(passport.session()); 
-// use connect-flash for flash messages stored in session
 app.use(flash()); 
 
 /* routing goes here */
