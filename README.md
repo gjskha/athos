@@ -1,12 +1,10 @@
 # Gwiki
 
-## INSTALL 
-
-### pre-requisites
+## Installation 
 
 Gwiki requires a recent version of Node, NPM, and SQLite. Gwiki is known to work with Node 14.16.1, NPM 6.14.12 and SQLite 3.35.5.
 
-#### Node
+### Node
 
 Node is available here:
 
@@ -14,25 +12,23 @@ https://nodejs.org/en/download/
 
 Download the pre-built installer for your platform, and follow the instructions. NPM is distributed with Node. 
 
-### install libraries
+### NPM libraries
 
 run `npm install` in the root level directory to install the libraries used by the application.
 
-#### SQLite
+### SQLite
 
-Installing the Node sqlite libraries will also install the sqlite binary with no intervention, but the sqlite download page for reference is here:
+Installing the NPM sqlite interface will also install the sqlite binary with no intervention, but the sqlite download page for reference is here:
 
 https://sqlite.org/download.html 
 
-### install DB file
+#### Importing data into SQLite
 
-The code repo includes a sqlite database file ready to go.
-
-If necessary, to (re-)instantiate the database, go to the subdirectory 'db' and import the datadump.sql file like this:
+The code repo includes a sqlite database file ready to go. You don't have do anything. However, if necessary, to (re-)instantiate the database, cd to the subdirectory 'db' and import the datadump.sql file like this:
 
 `$ sqlite3 database.db < database.dump`
 
-# RUNNING 
+## Running 
 
 1. run `npm start` to run the server.
 

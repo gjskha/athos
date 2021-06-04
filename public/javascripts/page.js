@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', function() {
   /* Create a form for editing a page */
   editLink = document.getElementById("edit");
   editLink.addEventListener("click", function(){
+
     makeActive("edit");
 
     axios.get(hosturl+'/internal/blocks/'+blockid+'/revisions/'+revisionid).then((response) => {
@@ -58,15 +59,12 @@ document.addEventListener('DOMContentLoaded', function() {
            }
 
            let resultDiv = document.createElement("DIV");
-           //resultDiv.className = "alert";
            resultDiv.className = "success";
            resultDiv.appendChild(document.createTextNode(resultText));
            form.appendChild(resultDiv);		
 	   setTimeout("location.reload(true);", 1000);	
         });
-
       });
-
     });
   });
  
@@ -215,10 +213,7 @@ document.addEventListener('DOMContentLoaded', function() {
           span.appendChild(document.createTextNode(diff[i][1]));
 	  diffOutput.appendChild(span);	
         }
-        // TBD do a modal
-	// table.appendChild(diffOutput); 
 	makeModal(diffOutput);
-
       });
 
     });
@@ -243,13 +238,15 @@ document.addEventListener('DOMContentLoaded', function() {
       const resultLength = response.data.result.length; 
 
       for (let i = 0; i < resultLength; i++) {
+
         let categoryItem = document.createElement("LI");
         let catName = response.data.result[i].CATEGORYTEXT;
-        // let categoryText = document.createTextNode(response.data.result[i].CATEGORYTEXT);
+        let localCatId = response.data.result[i].CATEGORYID;
         let categoryText = document.createTextNode(catName);
-       
+             
         categoryItem.appendChild(categoryText);
-        categoryItem.id = catName;
+        //categoryItem.id = catName;
+        categoryItem.id = localCatId; 
         categoryList.appendChild(categoryItem);
 
         //if (i == 0) {
@@ -258,10 +255,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // not allowed to remove primary category 
         if (i > 0) {
-          let closeBtn = makeClose(catName, function() {
+          let closeBtn = makeClose(catName, async function() {
              categoryItem.style.display = "none";
-             
-             // axios.delete(deleteCatUrl, 'category_text='+candidateUrl).then((response) => {});
+             const deleteCatUrl = hosturl + "/internal/blocks/" + blockid + "/category/" + localCatId;
+             //alert("deleteCatUrl is "+deleteCatUrl);
+
+             axios.delete(deleteCatUrl).then((response) => {
+               alert(response.status);
+             });
           
           });
           categoryItem.appendChild(closeBtn);
@@ -305,7 +306,6 @@ document.addEventListener('DOMContentLoaded', function() {
         let responseTxt;
         
         axios.post(addCatUrl, 'category_text='+candidateUrl).then((response) => {
-          //alert(response.status);
 
           if (response.status == 201) {
              responseTxt = "Category added!";

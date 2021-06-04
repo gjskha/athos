@@ -570,7 +570,7 @@ app.delete('/internal/blocks/:block_id/category/:category_id', async function(re
   const blockId = req.params.block_id;
   const categoryId = req.params.category_id;
 
-  if ((typeof(blockId) !== "undefined") &&  (typeof(blockId) !== "undefined")) {
+  if ((typeof(blockId) !== "undefined") &&  (typeof(categoryId) !== "undefined")) {
   
     const result = await removeCategoryFromBlock(blockId,categoryId);
   
@@ -605,9 +605,18 @@ async function removeCategoryFromBlock(blockId,categoryId) {
       where blockid = ? 
         and categoryid = ?`;
 
+  let result = false;
+  try {
+    result = await connection.run(deleteBlockCatRec, [blockId, categoryId], (err) => { 
+      if (err) {
+        console.error(err.message);
+      }
+    }); 
+  } catch (e) { 
+    console.error(e.message); 
+  }
 
-
-  return true;
+  return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -649,7 +658,7 @@ app.get('/internal/blocks/:block_id/categories', async function(req, res, next) 
 async function getBlockCategories(blockId) {
 
   const blockCategoriesQuery = 
-   `SELECT C.CATEGORYTEXT 
+   `SELECT C.CATEGORYTEXT,C.CATEGORYID 
       FROM BLOCKS B 
      INNER JOIN BLOCKS_CATEGORIES X 
         ON B.BLOCKID = X.BLOCKID 
