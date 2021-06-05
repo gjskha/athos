@@ -320,6 +320,7 @@ document.addEventListener('DOMContentLoaded', function() {
              let msgArea = document.getElementById("msg_area");
 	     msgArea.appendChild(responseDiv);
        
+             let modalBg = document.getElementsByClassName("modal")[0];
              modalBg.style.display = "none";
           } 
 

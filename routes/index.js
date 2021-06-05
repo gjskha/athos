@@ -630,6 +630,7 @@ async function removeCategoryFromBlock(blockId,categoryId) {
       if (err) {
         console.error(err.message);
       }
+      result = true;
     }); 
   } catch (e) { 
     console.error(e.message); 
